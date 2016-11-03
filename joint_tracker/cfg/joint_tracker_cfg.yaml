@@ -1,0 +1,51 @@
+# Type of kinematic analysis
+# Detect joints between the static environment and the moving bodies = 1
+# Detect joints only between moving bodies = 2
+# Detect all joints = 3
+ks_analysis_type: 3
+
+# Clear any existing markers from previous runs
+clear_rviz_markers: true
+
+# Unnormalized probability of the Disconnected joint (constant value). This probability acts as threshold: if 
+# the probability of the other joint types are under this value, the joint is classified as Disconnected (for uniform prior)
+disconnected_ne: 0.1
+
+# Params for all joints
+likelihood_sample_num: 100
+min_joint_age_for_ee: 3
+sigma_delta_meas_uncertainty_linear: 0.03
+sigma_delta_meas_uncertainty_angular: 1
+
+# Params for Prismatic Joints
+# These values are multiplied by DeltaT and (DeltaT/3)^3, that usually at 30fps are 0.03 and 0,000001372
+# For example, 
+#   prism_sigma_sys_noise_phi = 0.3 -> 1 cm of system noise in the pose per frame
+#   cov_sys_acc_r = 2.55 -> 0.08 rad (aprox 5 degrees) of system noise in the pose per frame
+prism_prior_cov_vel: 0.5
+prism_sigma_sys_noise_phi: 2.55
+prism_sigma_sys_noise_theta: 2.55
+prism_sigma_sys_noise_pv: 0.9
+prism_sigma_sys_noise_pvd: 75
+prism_sigma_meas_noise: 0.9
+
+# Params for Revolute Joints
+rev_prior_cov_vel: 1.0
+rev_sigma_sys_noise_phi: 2.55
+rev_sigma_sys_noise_theta: 2.55
+rev_sigma_sys_noise_px: 0.3
+rev_sigma_sys_noise_py: 0.3
+rev_sigma_sys_noise_pz: 0.3
+rev_sigma_sys_noise_rv: 5.1
+rev_sigma_sys_noise_rvd: 75
+rev_sigma_meas_noise: 0.05
+# 0.045 == 2.5 degrees
+rev_min_rot_for_ee: 0.045
+rev_max_joint_distance_for_ee: 0.5
+
+# Params for Rigid Joints
+
+# Maximum amount of translation allowed before rejecting the rigid joint hypothesis [m]
+rig_max_translation: 0.05
+# Maximum amount of rotation allowed before rejecting the rigid joint hypothesis [rad]
+rig_max_rotation: 0.1

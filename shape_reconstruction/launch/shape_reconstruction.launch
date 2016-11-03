@@ -1,0 +1,13 @@
+<launch>
+  <group>
+    <node name="shape_reconstruction" output="screen" pkg="shape_reconstruction" type="shape_reconstruction_node" respawn="false">
+      <rosparam file="$(find shape_reconstruction)/cfg/shape_reconstruction_cfg.yaml" command="load"/>
+    </node>
+  </group>
+</launch>
+
+<!--
+		launch-prefix="gprof"
+		launch-prefix="valgrind -tool=callgrind"
+-->
+

@@ -1,0 +1,75 @@
+max_rb: 10
+
+# Time (s) between processing frames
+processing_interval: 2.0
+
+# If we compare always to the initial frame or we advance (current -> previous in the next step)
+to_initial: false
+
+# If we accumulate the points that change their depth over time
+accumulate_change_candidates: true
+
+# If we fill the depth values using a CBF
+depth_filling: false
+
+# If we remove the points of the model that are inconsistent with the current depth map
+remove_inconsistent_points: true
+
+color_changes_erode_size: 3
+detect_static_environment: false
+
+# Use this only if your object is very textured and there are no noisy features
+use_clustered_feats: true
+
+min_depth_change: 0.08
+min_color_change: 15
+knn_min_radius: 0.01
+
+# Good sv_seed_resolution values:
+# 0.1 -> large regions
+# 0.05 -> smaller regions
+estimate_sv: true
+sv_voxel_resolution: 0.1
+sv_seed_resolution: 0.05
+sv_color_importance: 0.4
+sv_spatial_importance: 0.4
+sv_normal_importance: 0.9
+sv_min_num_model_pixels: 600
+sv_visualization: false
+
+# BETA
+# We extend the supervoxels to neighboring supervoxels with very similar properties (color and normal)
+extend_model_to_neighbor_sv: false
+similarity_in_h: 10
+# In degrees
+similarity_in_normal: 10
+
+record_result_bag: false
+record_videos: false
+publish_shapes_in_each_frame: true
+refine_shapes_in_each_frame: true
+
+# Size of the leaf of the approximate voxel grid filter -> Influences the number of points in the model
+# high resolution (better when building shape models): 0.002
+# low resolution (better for tracking): 0.02
+avg_leaf_size: 0.002
+
+# Radius search and min number of neighbors in radius for the outlier removal filter
+# This filter should delete single super voxels. If the properties of the super voxels change, or the leaf size of the voxel grid filter change, the radius and/or the min neighbors of
+# the outlier removal should change
+# Good values: 
+#(0.005, 8) -> Allows small patches
+#(0.01, 40) -> To use with avg_leaf_size=0.002
+#(0.03, 7) -> To use with avg_leaf_size=0.02
+ror_radius_search: 0.005
+ror_min_neighbors: 8
+
+# if true user has to hit enter to advance the feature tracker every time SR processes the input
+# (useful for ground truth annotation)
+manually_advance_after_processing: false
+
+#roberto
+result_bag_path: /home/roberto/omip_ws/src/omip/shape_reconstruction/data/results
+
+#sebastian
+#result_bag_path: /home/shoefer/omip_workspace/data/results

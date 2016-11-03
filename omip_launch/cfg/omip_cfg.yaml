@@ -1,0 +1,8 @@
+#Maximum framerate of the device
+sensor_fps: 30
+
+#Processing framerate factor. The sensor fps gets reduced by this factor. The result of sensor_fps/processing_factor has to be INTEGER
+processing_factor: 1
+
+#Wait at the beginning for the user to press enter (in feature tracking) to start the execution
+press_enter_to_start: false

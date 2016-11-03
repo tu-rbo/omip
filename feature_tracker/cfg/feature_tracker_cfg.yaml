@@ -1,0 +1,77 @@
+# Type of FT
+ft_type: PointFeatureTracker
+
+# RGB image topic
+rgb_img_topic: /camera/rgb/image_rect_color
+# Camera info topic
+camera_info_topic: /camera/rgb/camera_info
+# Point cloud topic
+rgbd_pc_topic: /camera/depth_registered/points
+
+# Use these topics for bags generated with openni
+#depth_img_topic: /camera/depth_registered/image_rect
+# Use these topics for bags generated with openni2
+depth_img_topic: /camera/depth_registered/hw_registered/image_rect_raw
+
+# Self-occlusion filter image topic
+selfocclusionfilter_img_topic: selfocclusion_img
+# True if the region occluded by the robot is white (rviz plugin). False if it is black (old variant and rosbags)
+selfocclusionfilter_positive: false
+
+# Number of feature points to track
+number_features: 200
+
+# Minimum number of feature points that have to be detected and tracked at each point in time 
+# (set to 0 if you only want to track the best features, set to number_features if you want to force to track the max number of features)
+min_number_features: 0
+
+# Minimum feature quality
+# This value is decreased if we force the feature tracker to track a certain number of features usinig min_number_features
+# After tracking, the features should have at least min_feat_quality/2 quality to not be removed
+min_feat_quality: 0.005
+
+# Defines the ROI (give a negative value if you don't want to restrict the ROI)
+min_distance: -1.0
+max_distance: -1.0
+
+# Defines the ROI for the feature tracking without high level info
+max_interframe_jump: 0.04
+
+erosion_size_detect: 2
+erosion_size_track: 1
+
+# BETA!
+# Focus the detection of new features in the areas where the depth changes (motion)
+attention_to_motion: false
+min_time_to_detect_motion: 1.0
+min_depth_difference: 0.02
+min_area_size_pixels: 3000
+
+########################################################
+## FOR ROSBAG ANALYSIS
+# Use date from a rosbag or from the live RGB-D stream
+data_from_bag: false
+
+# Policy to advance to the next frame of the rosbag
+# 0 -> Automatically advancing, no waiting
+# 1 -> Manually advancing
+# 2 -> Wait for signal from Shape Reconstruction
+# 3 -> Wait for signal from Shape Tracker
+advance_frame_mechanism: 0
+
+# Maximum time to wait for the signal to advance a frame (set to -1 if you want to wait infinitely). Only used if advance_frame_mechanism is 2 or 3
+advance_frame_max_wait_time: 60
+#manually_advance_bag_max_time: -1
+
+# Minimum time to wait to advance a frame. Only used if advance_frame_mechanism is 0
+advance_frame_min_wait_time: 0.033
+
+# The callback synchronizes 3 messages: depth & rgb images + pc. Use only with rosbags
+subscribe_to_pc: false
+
+# Republishes the PC (only if it subscribes to it) to synchronize with the features
+pub_full_pc: false
+
+# If using the file from the bag, the name of the file
+#bag_file: /home/roberto/ros_wss/omip_ws/2016-10-05-14-43-06.bag
+bag_file: /home/roberto/Documents/rosbags/IROS14 rosbags/doors/doors_1_full_cut.bag

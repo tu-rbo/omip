@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+ <robot name="KinematicStructure">
+<link name="static_environment"/>
+<link name="rb2">
+<visual>
+<origin xyz="0 0 0" rpy="0 0 0" />
+<geometry>
+<mesh filename="package://shape_reconstruction/meshes/shape_rb2.stl"/>
+</geometry>
+</visual>
+</link>
+<link name="rb3">
+<visual>
+<origin xyz="0 0 0" rpy="0 0 0" />
+<geometry>
+<mesh filename="package://shape_reconstruction/meshes/shape_rb3.stl"/>
+</geometry>
+</visual>
+</link>
+<joint name="joint1" type="revolute">
+<parent link="static_environment"/>
+<child link="rb2"/>
+<origin xyz="0.40995 -0.00976362 1.42235" rpy="0 0.211811 0.211811"/>
+<axis xyz="1 0 0"/>
+<limit effort="30" velocity="1.0" lower="-3.1416" upper="3.1416"/>
+</joint>
+<joint name="joint2" type="revolute">
+<parent link="static_environment"/>
+<child link="rb3"/>
+<origin xyz="0.0499528 0.0893328 1.50322" rpy="0 2.99795 2.99795"/>
+<axis xyz="1 0 0"/>
+<limit effort="30" velocity="1.0" lower="-3.1416" upper="3.1416"/>
+</joint>
+<joint name="joint3" type="prismatic">
+<parent link="rb2"/>
+<child link="rb3"/>
+<origin xyz="0.0152559 0.430116 1.48772" rpy="0 1.49629 1.49629"/>
+<axis xyz="1 0 0"/>
+<limit effort="30" velocity="1.0" lower="-3.1416" upper="3.1416"/>
+</joint>
+</robot>

@@ -1,0 +1,7 @@
+<launch>
+  <group>
+    <node name="surface_smoother" output="screen" pkg="shape_reconstruction" type="shape_reconstruction_smoother_node" respawn="false" >
+      <rosparam file="$(find shape_reconstruction)/cfg/surface_smoother_cfg.yaml" command="load"/>
+    </node>
+  </group>
+</launch>

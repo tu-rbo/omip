@@ -1,0 +1,191 @@
+[global_config]
+  suppress_multiple_term_dialog = True
+[keybindings]
+[profiles]
+  [[default]]
+    background_image = None
+  [[hold]]
+    background_image = None
+    exit_action = hold
+[layouts]
+  [[omip_sr_st]]
+    [[[child0]]]
+      position = 63:21
+      type = Window
+      order = 0
+      parent = ""
+      size = 1857, 900
+    [[[child1]]]
+      position = 88
+      type = VPaned
+      order = 0
+      parent = child0
+    [[[child2]]]
+      position = 111
+      type = VPaned
+      order = 1
+      parent = child1
+    [[[child3]]]
+      position = 152
+      type = VPaned
+      order = 1
+      parent = child2
+    [[[child4]]]
+      position = 127
+      type = VPaned
+      order = 1
+      parent = child3
+    [[[terminal0]]]
+      profile = default
+      command = roslaunch feature_tracker ft.launch
+      type = Terminal
+      order = 0
+      parent = child1
+    [[[terminal1]]]
+      profile = default
+      command = roslaunch rb_tracker rbt.launch
+      type = Terminal
+      order = 0
+      parent = child2
+    [[[terminal2]]]
+      profile = default
+      command = roslaunch joint_tracker jt.launch
+      type = Terminal
+      order = 0
+      parent = child3
+    [[[terminal3]]]
+      profile = default
+      command = roslaunch shape_reconstruction shape_reconstruction.launch
+      type = Terminal
+      order = 0
+      parent = child4
+    [[[terminal4]]]
+      profile = default
+      command = roslaunch shape_tracker shape_tracker.launch
+      type = Terminal
+      order = 1
+      parent = child4
+  [[default]]
+    [[[child1]]]
+      type = Terminal
+      parent = window0
+    [[[window0]]]
+      type = Window
+      parent = ""
+  [[omip_sr]]
+    [[[child0]]]
+      position = 63:21
+      type = Window
+      order = 0
+      parent = ""
+      size = 1857, 500
+    [[[child1]]]
+      position = 88
+      type = VPaned
+      order = 0
+      parent = child0
+    [[[child2]]]
+      position = 111
+      type = VPaned
+      order = 1
+      parent = child1
+    [[[child3]]]
+      position = 152
+      type = VPaned
+      order = 1
+      parent = child2
+    [[[terminal0]]]
+      profile = default
+      command = roslaunch feature_tracker ft.launch
+      type = Terminal
+      order = 0
+      parent = child1
+    [[[terminal1]]]
+      profile = default
+      command = roslaunch rb_tracker rbt.launch
+      type = Terminal
+      order = 0
+      parent = child2
+    [[[terminal2]]]
+      profile = default
+      command = roslaunch joint_tracker jt.launch
+      type = Terminal
+      order = 0
+      parent = child3
+    [[[terminal3]]]
+      profile = default
+      command = roslaunch shape_reconstruction shape_reconstruction.launch
+      type = Terminal
+      order = 1
+      parent = child3
+  [[omip_hold]]
+    [[[child0]]]
+      position = 57:21
+      type = Window
+      order = 0
+      parent = ""
+      size = 1863, 500
+    [[[child1]]]
+      position = 124
+      type = VPaned
+      order = 0
+      parent = child0
+    [[[child2]]]
+      position = 351
+      type = VPaned
+      order = 1
+      parent = child1
+    [[[terminal0]]]
+      profile = hold
+      command = roslaunch feature_tracker ft.launch
+      type = Terminal
+      order = 0
+      parent = child1
+    [[[terminal1]]]
+      profile = hold
+      command = roslaunch rb_tracker rbt.launch
+      type = Terminal
+      order = 0
+      parent = child2
+    [[[terminal2]]]
+      profile = hold
+      command = roslaunch joint_tracker jt.launch
+      type = Terminal
+      order = 1
+      parent = child2
+  [[ttt]]
+    [[[child0]]]
+      position = 57:21
+      type = Window
+      order = 0
+      parent = ""
+      size = 1863, 500
+    [[[child1]]]
+      position = 124
+      type = VPaned
+      order = 0
+      parent = child0
+    [[[child2]]]
+      position = 351
+      type = VPaned
+      order = 1
+      parent = child1
+    [[[terminal0]]]
+      profile = default
+      command = roslaunch feature_tracker ft.launch
+      type = Terminal
+      order = 0
+      parent = child1
+    [[[terminal1]]]
+      profile = default
+      command = roslaunch rb_tracker rbt.launch
+      type = Terminal
+      order = 0
+      parent = child2
+    [[[terminal2]]]
+      profile = default
+      command = roslaunch joint_tracker jt.launch
+      type = Terminal
+      order = 1
+      parent = child2
+[plugins]

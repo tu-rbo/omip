@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<package>
+  <name>lgsm</name>
+  <version>0.0.0</version>
+  <description>ROS package for the Lie Group for Solid Mechanics by  CEA LIST (DIASI/LSI) xde-support@saxifrage.cea.fr</description>
+
+  <license>MIT</license>
+  <author>Roberto Martín-Martín</author>
+  <maintainer email="roberto.martinmartin@tu-berlin.de">Roberto Martín-Martín</maintainer>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <build_depend>cmake_modules</build_depend>
+</package>

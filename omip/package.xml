@@ -1,0 +1,22 @@
+<package>
+  <name>omip</name>
+  <version>1.0.0</version>
+  <description>
+  This metapackage groups all the packages for Online Multimodal Interactive Perception (OMIP).
+  </description>
+
+  <license>MIT</license>
+  <author>Roberto Martín-Martín</author>
+  <maintainer email="roberto.martinmartin@tu-berlin.de">Roberto Martín-Martín</maintainer>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <run_depend>feature_tracker</run_depend>
+  <run_depend>rb_tracker</run_depend>
+  <run_depend>joint_tracker</run_depend>
+  <run_depend>lgsm</run_depend>
+
+  <export>
+    <metapackage/>
+  </export>
+</package>

@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<robot name="KinematicStructure">
+  <joint name="joint1" type="prismatic">
+    <parent link="static_environment"/>
+    <child link="rb2"/>
+    <origin xyz="0.00750949 -0.0106181 0.643427" rpy="0 0 0"/>
+    <axis xyz="-0.242525 0.0555302 -0.968555"/>
+    <limit effort="30" velocity="1.0" lower="-3.1416" upper="3.1416"/>
+  </joint>
+  <link name="static_environment">
+      <visual>
+      <origin xyz="0.0 0.0 0.0" rpy="0 0 0"/>
+      <geometry>
+          <mesh filename="package://shape_reconstruction/meshes/shape_static_env.stl"/>
+      </geometry>
+      <material name="shape_se_color">
+        <color rgba="1 0 0 1"/>
+      </material>
+    </visual>
+  </link>
+  <link name="rb2">
+    <visual>
+      <origin xyz="-0.00750949 0.0106181 -0.643427" rpy="0 0 0"/>
+      <geometry>
+          <mesh filename="package://shape_reconstruction/meshes/shape_rb2.stl"/>
+      </geometry>
+      <material name="shape_rb2_color">
+        <color rgba="0 0 1 1"/>
+      </material>
+    </visual>
+  </link>
+</robot>

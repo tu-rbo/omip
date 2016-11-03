@@ -1,0 +1,507 @@
+Panels:
+  - Class: rviz/Displays
+    Help Height: 78
+    Name: Displays
+    Property Tree Widget:
+      Expanded:
+        - /TF1/Frames1
+      Splitter Ratio: 0.838889
+    Tree Height: 537
+  - Class: rviz/Selection
+    Name: Selection
+  - Class: rviz/Tool Properties
+    Expanded:
+      - /2D Pose Estimate1
+      - /2D Nav Goal1
+      - /Publish Point1
+    Name: Tool Properties
+    Splitter Ratio: 0.588679
+  - Class: rviz/Views
+    Expanded:
+      - /Current View1
+    Name: Views
+    Splitter Ratio: 0.5
+  - Class: rviz/Time
+    Experimental: false
+    Name: Time
+    SyncMode: 1
+    SyncSource: RGB Image
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Alpha: 1
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: 10
+        Min Value: -10
+        Value: true
+      Axis: Z
+      Channel Name: intensity
+      Class: rviz/PointCloud2
+      Color: 255; 255; 255
+      Color Transformer: RGB8
+      Decay Time: 0
+      Enabled: false
+      Invert Rainbow: false
+      Max Color: 255; 255; 255
+      Max Intensity: 4096
+      Min Color: 0; 0; 0
+      Min Intensity: 0
+      Name: Full RGBD PC
+      Position Transformer: XYZ
+      Queue Size: 10
+      Selectable: true
+      Size (Pixels): 2
+      Size (m): 0.01
+      Style: Points
+      Topic: /camera/depth_registered/points
+      Unreliable: false
+      Use Fixed Frame: true
+      Use rainbow: true
+      Value: false
+    - Alpha: 1
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: 10
+        Min Value: -10
+        Value: true
+      Axis: Z
+      Channel Name: intensity
+      Class: rviz/PointCloud2
+      Color: 255; 0; 0
+      Color Transformer: FlatColor
+      Decay Time: 0
+      Enabled: true
+      Invert Rainbow: false
+      Max Color: 255; 255; 255
+      Max Intensity: 4096
+      Min Color: 0; 0; 0
+      Min Intensity: 0
+      Name: TrackedFeaturesPC
+      Position Transformer: XYZ
+      Queue Size: 10
+      Selectable: true
+      Size (Pixels): 3
+      Size (m): 0.005
+      Style: Spheres
+      Topic: /feature_tracker/state
+      Unreliable: false
+      Use Fixed Frame: true
+      Use rainbow: true
+      Value: true
+    - Alpha: 1
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: 10
+        Min Value: -10
+        Value: true
+      Axis: Z
+      Channel Name: label
+      Class: rviz/PointCloud2
+      Color: 255; 255; 255
+      Color Transformer: Intensity
+      Decay Time: 0
+      Enabled: true
+      Invert Rainbow: true
+      Max Color: 255; 255; 255
+      Max Intensity: 3
+      Min Color: 0; 0; 0
+      Min Intensity: 2
+      Name: ClusteredFeaturesPC
+      Position Transformer: XYZ
+      Queue Size: 10
+      Selectable: true
+      Size (Pixels): 3
+      Size (m): 0.01
+      Style: Spheres
+      Topic: /rb_tracker/clustered_tracked_feats
+      Unreliable: false
+      Use Fixed Frame: true
+      Use rainbow: true
+      Value: true
+    - Alpha: 0.5
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: 10
+        Min Value: -10
+        Value: true
+      Axis: Z
+      Channel Name: intensity
+      Class: rviz/PointCloud2
+      Color: 0; 255; 0
+      Color Transformer: FlatColor
+      Decay Time: 0
+      Enabled: false
+      Invert Rainbow: false
+      Max Color: 255; 255; 255
+      Max Intensity: 4096
+      Min Color: 0; 0; 0
+      Min Intensity: 0
+      Name: PredictedFeaturesPC
+      Position Transformer: XYZ
+      Queue Size: 10
+      Selectable: true
+      Size (Pixels): 3
+      Size (m): 0.01
+      Style: Spheres
+      Topic: /feature_tracker/predicted_measurement
+      Unreliable: false
+      Use Fixed Frame: true
+      Use rainbow: true
+      Value: false
+    - Class: rviz/Image
+      Enabled: true
+      Image Topic: /camera/rgb/image_rect_color
+      Max Value: 1
+      Median window: 5
+      Min Value: 0
+      Name: RGB Image
+      Normalize Range: true
+      Queue Size: 2
+      Transport Hint: raw
+      Unreliable: false
+      Value: true
+    - Class: rviz/Image
+      Enabled: false
+      Image Topic: /camera/depth_registered/hw_registered/image_rect_raw
+      Max Value: 1
+      Median window: 5
+      Min Value: 0
+      Name: Depth Image
+      Normalize Range: true
+      Queue Size: 2
+      Transport Hint: raw
+      Unreliable: false
+      Value: false
+    - Class: rviz/Image
+      Enabled: false
+      Image Topic: /feature_tracker/tracked_feats_img
+      Max Value: 1
+      Median window: 5
+      Min Value: 0
+      Name: TrackedFeaturesIMG
+      Normalize Range: true
+      Queue Size: 2
+      Transport Hint: raw
+      Unreliable: false
+      Value: false
+    - Class: rviz/Image
+      Enabled: false
+      Image Topic: /feature_tracker/tracked_feats_with_pm_img
+      Max Value: 1
+      Median window: 5
+      Min Value: 0
+      Name: TrackedFeatsWithPredMskIMG
+      Normalize Range: true
+      Queue Size: 2
+      Transport Hint: raw
+      Unreliable: false
+      Value: false
+    - Class: rviz/Image
+      Enabled: false
+      Image Topic: /feature_tracker/pred_and_past_feats_img
+      Max Value: 1
+      Median window: 5
+      Min Value: 0
+      Name: PredictedAndPastFeatsIMG
+      Normalize Range: true
+      Queue Size: 2
+      Transport Hint: raw
+      Unreliable: false
+      Value: false
+    - Class: rviz/Image
+      Enabled: false
+      Image Topic: /feature_tracker/depth_edges_img
+      Max Value: 1
+      Median window: 5
+      Min Value: 0
+      Name: DepthEdgesIMG
+      Normalize Range: true
+      Queue Size: 2
+      Transport Hint: raw
+      Unreliable: false
+      Value: false
+    - Class: rviz/Image
+      Enabled: false
+      Image Topic: /feature_tracker/detecting_mask_img
+      Max Value: 1
+      Median window: 5
+      Min Value: 0
+      Name: DetectingMaskIMG
+      Normalize Range: true
+      Queue Size: 2
+      Transport Hint: raw
+      Unreliable: false
+      Value: false
+    - Class: rviz/Image
+      Enabled: false
+      Image Topic: /feature_tracker/tracking_mask_img
+      Max Value: 1
+      Median window: 5
+      Min Value: 0
+      Name: TrackingMaskIMG
+      Normalize Range: true
+      Queue Size: 2
+      Transport Hint: raw
+      Unreliable: false
+      Value: false
+    - Class: rviz/Image
+      Enabled: false
+      Image Topic: /feature_tracker/predicting_msk_img
+      Max Value: 1
+      Median window: 5
+      Min Value: 0
+      Name: PredictingMaskIMG
+      Normalize Range: true
+      Queue Size: 2
+      Transport Hint: raw
+      Unreliable: false
+      Value: false
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /joint_tracker/markers
+      Name: KinematicStructure
+      Namespaces:
+        kinematic_structure: true
+        kinematic_structure_uncertainty: true
+      Queue Size: 100
+      Value: true
+    - Class: rviz/TF
+      Enabled: true
+      Frame Timeout: 1500
+      Frames:
+        All Enabled: false
+        camera_rgb_optical_frame:
+          Value: true
+        ip/rb2:
+          Value: true
+        ip/rb3:
+          Value: true
+        static_environment:
+          Value: true
+      Marker Scale: 0.5
+      Name: TF
+      Show Arrows: false
+      Show Axes: true
+      Show Names: true
+      Tree:
+        camera_rgb_optical_frame:
+          ip/rb2:
+            {}
+          ip/rb3:
+            {}
+          static_environment:
+            {}
+      Update Interval: 0
+      Value: true
+    - Alpha: 0.5
+      AxisLength: 0.1
+      AxisRadius: 0.01
+      Class: rviz_plugin_covariance/PoseWithCovariance
+      Color: 204; 51; 204
+      Enabled: false
+      Name: RB2
+      Scale: 1
+      Topic: /ip/rb2
+      Unreliable: false
+      Value: false
+    - Alpha: 0.5
+      AxisLength: 0.1
+      AxisRadius: 0.01
+      Class: rviz_plugin_covariance/PoseWithCovariance
+      Color: 204; 51; 204
+      Enabled: false
+      Name: RB3
+      Scale: 1
+      Topic: /ip/rb3
+      Unreliable: false
+      Value: false
+    - Alpha: 0.1
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: 10
+        Min Value: -10
+        Value: true
+      Axis: Z
+      Channel Name: intensity
+      Class: rviz/PointCloud2
+      Color: 255; 0; 0
+      Color Transformer: RGB8
+      Decay Time: 0
+      Enabled: true
+      Invert Rainbow: false
+      Max Color: 255; 255; 255
+      Max Intensity: 4096
+      Min Color: 0; 0; 0
+      Min Intensity: 0
+      Name: RecShapeRB2
+      Position Transformer: XYZ
+      Queue Size: 10
+      Selectable: true
+      Size (Pixels): 3
+      Size (m): 0.01
+      Style: Points
+      Topic: /shape_recons/shape_rb2
+      Unreliable: false
+      Use Fixed Frame: true
+      Use rainbow: true
+      Value: true
+    - Alpha: 0.1
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: 10
+        Min Value: -10
+        Value: true
+      Axis: Z
+      Channel Name: intensity
+      Class: rviz/PointCloud2
+      Color: 85; 170; 255
+      Color Transformer: RGB8
+      Decay Time: 0
+      Enabled: true
+      Invert Rainbow: false
+      Max Color: 255; 255; 255
+      Max Intensity: 4096
+      Min Color: 0; 0; 0
+      Min Intensity: 0
+      Name: RecShapeRB3
+      Position Transformer: XYZ
+      Queue Size: 10
+      Selectable: true
+      Size (Pixels): 3
+      Size (m): 0.01
+      Style: Points
+      Topic: /shape_recons/shape_rb3
+      Unreliable: false
+      Use Fixed Frame: true
+      Use rainbow: true
+      Value: true
+    - Alpha: 0.1
+      Class: rviz/RobotModel
+      Collision Enabled: false
+      Enabled: false
+      Links:
+        All Links Enabled: true
+        Expand Joint Details: false
+        Expand Link Details: false
+        Expand Tree: false
+        Link Tree Style: Links in Alphabetic Order
+      Name: RobotModel
+      Robot Description: robot_description
+      TF Prefix: ""
+      Update Interval: 0
+      Value: false
+      Visual Enabled: true
+    - Class: rviz::CameraRenderPublisher
+      Enabled: false
+      Image Rendering: overlay
+      Image Topic: /camera/rgb/image_rect_color
+      Name: CameraRenderPublisher
+      Output Image Topic: /render_img
+      Overlay Alpha: 0
+      Queue Size: 2
+      Transport Hint: raw
+      Unreliable: false
+      Value: false
+      Visibility:
+        ClusteredFeaturesPC: false
+        Depth Image: false
+        DepthEdgesIMG: false
+        DetectingMaskIMG: false
+        Full RGBD PC: true
+        KinematicStructure: false
+        PredictedAndPastFeatsIMG: false
+        PredictedFeaturesPC: true
+        PredictingMaskIMG: false
+        RB2: false
+        RB3: false
+        RGB Image: false
+        RecShapeRB2: true
+        RecShapeRB3: true
+        RobotModel: true
+        TF: false
+        TrackedFeatsWithPredMskIMG: false
+        TrackedFeaturesIMG: false
+        TrackedFeaturesPC: false
+        TrackingMaskIMG: false
+        Value: true
+      Zoom Factor: 1
+  Enabled: true
+  Global Options:
+    Background Color: 48; 48; 48
+    Fixed Frame: camera_rgb_optical_frame
+    Frame Rate: 30
+  Name: root
+  Tools:
+    - Class: rviz/Interact
+      Hide Inactive Objects: true
+    - Class: rviz/MoveCamera
+    - Class: rviz/Select
+    - Class: rviz/FocusCamera
+    - Class: rviz/Measure
+    - Class: rviz/SetInitialPose
+      Topic: /initialpose
+    - Class: rviz/SetGoal
+      Topic: /move_base_simple/goal
+    - Class: rviz/PublishPoint
+      Single click: true
+      Topic: /clicked_point
+  Value: true
+  Views:
+    Current:
+      Class: rviz/Orbit
+      Distance: 2.31446
+      Enable Stereo Rendering:
+        Stereo Eye Separation: 0.06
+        Stereo Focal Distance: 1
+        Swap Stereo Eyes: false
+        Value: false
+      Focal Point:
+        X: -0.250568
+        Y: 0.38391
+        Z: 1.3887
+      Name: Current View
+      Near Clip Distance: 0.01
+      Pitch: -1.1548
+      Target Frame: view_frame
+      Value: Orbit (rviz)
+      Yaw: 4.63114
+    Saved: ~
+Window Geometry:
+  CameraRenderPublisher:
+    collapsed: false
+  Depth Image:
+    collapsed: false
+  DepthEdgesIMG:
+    collapsed: false
+  DetectingMaskIMG:
+    collapsed: false
+  Displays:
+    collapsed: false
+  Height: 1059
+  Hide Left Dock: false
+  Hide Right Dock: false
+  PredictedAndPastFeatsIMG:
+    collapsed: false
+  PredictingMaskIMG:
+    collapsed: false
+  QMainWindow State: 000000ff00000000fd00000004000000000000016a000003dffc020000000ffb000000100044006900730070006c0061007900730100000028000002a8000000dd00fffffffc000002d6000001310000001600fffffffa000000080100000009fb000000340054007200610063006b006500640046006500610074007300570069007400680050007200650064004d0073006b0049004d00470000000000ffffffff000000e600fffffffb0000002200500072006500640069006300740069006e0067004d00610073006b0049004d00470000000000ffffffff000000a400fffffffb0000001e0054007200610063006b0069006e0067004d00610073006b0049004d00470000000000ffffffff0000009900fffffffb000000200044006500740065006300740069006e0067004d00610073006b0049004d00470000000000ffffffff000000a200fffffffb000000300050007200650064006900630074006500640041006e00640050006100730074004600650061007400730049004d00470000000000ffffffff000000d300fffffffb0000001a00440065007000740068004500640067006500730049004d00470000000000ffffffff0000009100fffffffb000000240054007200610063006b00650064004600650061007400750072006500730049004d00470000000000ffffffff000000ab00fffffffb000000160044006500700074006800200049006d0061006700650000000000ffffffff0000007e00fffffffb0000001200520047004200200049006d0061006700650100000000ffffffff0000007300fffffffb0000001200520047004200200049006d0061006700650000000335000000640000000000000000fb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb0000000a0049006d00610067006502000003ae000000bf000003d2000002dafb0000000a0049006d00610067006500000002d70000010e0000000000000000fb000000160044006500700074006800200049006d0061006700650000000392000000750000000000000000fb000000240054007200610063006b00650064004600650061007400750072006500730049004d004700000003cd0000003a0000000000000000fb0000002a00430061006d00650072006100520065006e006400650072005000750062006c0069007300680065007202000004e20000023900000280000001f6fb0000002a00430061006d00650072006100520065006e006400650072005000750062006c0069007300680065007202000002060000019200000288000001fe00000001000001450000032bfc0200000007fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000001200530065006c0065006300740069006f006e00000000280000032b0000006400fffffffc00000028000003bd0000000000fffffffa000000000100000003fb0000001a00440065007000740068004500640067006500730049004d00470000000000ffffffff0000000000000000fb000000300050007200650064006900630074006500640041006e00640050006100730074004600650061007400730049004d00470000000000ffffffff0000000000000000fb000000340054007200610063006b006500640046006500610074007300570069007400680050007200650064004d0073006b0049004d00470000000000ffffffff0000000000000000fb0000000c00430061006d00650072006100000000280000020e0000000000000000fc0000021b000001ec0000000000fffffffa000000000100000003fb0000002200500072006500640069006300740069006e0067004d00610073006b0049004d00470000000000ffffffff0000000000000000fb0000001e0054007200610063006b0069006e0067004d00610073006b0049004d00470000000000ffffffff0000000000000000fb000000200044006500740065006300740069006e0067004d00610073006b0049004d00470000000650000000ff0000000000000000fb0000000a0056006900650077007300000000280000039e000000b000fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e1000001970000000300000780000000aefc0100000002fb0000000800540069006d0065000000000000000780000002ab00fffffffb0000000800540069006d0065010000000000000450000000000000000000000610000003df00000004000000040000000800000008fc00000002000000020000000000000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  RGB Image:
+    collapsed: false
+  Selection:
+    collapsed: false
+  Time:
+    collapsed: false
+  Tool Properties:
+    collapsed: false
+  TrackedFeatsWithPredMskIMG:
+    collapsed: false
+  TrackedFeaturesIMG:
+    collapsed: false
+  TrackingMaskIMG:
+    collapsed: false
+  Views:
+    collapsed: false
+  Width: 1920
+  X: 1920
+  Y: 21

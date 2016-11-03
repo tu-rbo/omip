@@ -1,0 +1,101 @@
+// This file is part of Eigen, a lightweight C++ template library
+// for linear algebra.
+//
+// Copyright (C) 2009-2013 CEA LIST (DIASI/LSI) <xde-support@saxifrage.cea.fr>
+//
+// This Source Code Form is subject to the terms of the Mozilla
+// Public License v. 2.0. If a copy of the MPL was not distributed
+// with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+#ifndef EIGEN_LGSM_MODULE_H
+#define EIGEN_LGSM_MODULE_H
+
+#ifdef WIN32
+ #undef min
+ #undef max
+#endif
+
+//Eigen include
+#include <Eigen/Core>
+#include <Eigen/Geometry>
+#include <Eigen/StdVector>
+
+namespace Eigen {
+
+/**
+  * \defgroup Lgsm: Lie Groups for Solid Mechanics module
+  *
+  * \code
+  * #include <unsupported/Eigen/Lgsm>
+  * \endcode
+  *
+  * This module provides generic Lie groups and algebras abstractions
+  * for the implementation of objects and operators commonly used for 3D
+  * solid geometry and mechanics. This module provides additional
+  * geometry functionalities from the official Eigen/Geometry module.
+  * The approaches and terminologies for objects and operators implemented
+  * in this modules follows in its vast majority "A Mathematical Introduction
+  * to Robotic Manipulation" by Murray, Li and Sastry (available freely online
+  * from the authors)
+  *
+  * Generic Lie groups and algebras abstractions are provided by the types
+  * \ref LieGroup, \ref LieAlgebra and \ref LieAlgebraDual
+  *
+  * Commonly used groups and algebras are implemented:
+  * - Body positions / transformations (based on Lie groups types):
+  *   - 3D translation: \ref Vector3 (from Eigen)
+  *   - 3D rotation SO(3): \ref Rotation3
+  *   - 6D translation/rotation SE(3): \ref Displacement
+  *
+  * - Velocities (based on Lie algebras types):
+  *   - 3D linear: \ref Vector3 (from Eigen)
+  *   - 3D angular so(3): \ref AngularVelocity
+  *   - 6D linear/angular se(3): \ref Twist
+  *
+  * - Forces (based on Dual lie algebras types):
+  *   - 3D linear: \ref Vector3 (from Eigen)
+  *   - 3D angular so(3)*: \ref Torque
+  *   - 6D linear/angular se(3)*: \ref Wrench
+  *
+  */
+
+// forward declaration
+template<class G, class Derived> class LieGroupBase;
+template<class G> class LieGroup;
+
+template<class A, class Derived> class LieAlgebraBase;
+template<class A, class Derived> class LieAlgebraDualBase;
+template<class A> class LieAlgebraDual;
+template<class A> class LieAlgebra;
+
+//lgsm include
+#include "src/Lgsm/util/Macros.h"
+#include "src/Lgsm/LieGroup.h"
+#include "src/Lgsm/LieAlgebra.h"
+
+#include "src/Lgsm/LieGroup_SO3.h"
+#include "src/Lgsm/LieAlgebra_so3.h"
+#include "src/Lgsm/LieGroup_SE3.h"
+#include "src/Lgsm/LieAlgebra_se3.h"
+
+// forward declaration
+template<class Derived> class DisplacementBase;
+template<class Derived> class WrenchBase;
+template<class Derived> class TwistBase;
+
+template<typename Scalar> class Displacement;
+template<typename Scalar> class Wrench;
+template<typename Scalar> class Twist;
+
+#include "src/Lgsm/Rotation3D.h"
+#include "src/Lgsm/Rotations.h"
+#include "src/Lgsm/Displacement.h"
+#include "src/Lgsm/AngularVelocity.h"
+#include "src/Lgsm/Torque.h"
+#include "src/Lgsm/Twist.h"
+#include "src/Lgsm/Wrench.h"
+#include "src/Lgsm/SE3CubicInterpolator.h"
+
+}
+
+#endif // EIGEN_LGSM_MODULE_H

@@ -1,0 +1,56 @@
+<launch>
+  <group>    
+    <!-- Unfortunately the tag 'env' to evaluate expresions does not work and we need to create bool args -->
+  
+    <arg name="xr2" default="false"/>
+    <arg name="xr3" default="false"/>    
+    <include file="$(find ros_win_bridge)/launch/xr2.launch" if="$(arg xr2)" />
+    <include file="$(find ros_win_bridge)/launch/xr3.launch" if="$(arg xr3)" />
+    
+    
+    <arg name="dof7" default="true"/>
+    <arg name="rviz" default="false"/>
+    <arg name="camera" default="true"/>
+    
+    <group if="$(arg dof7)">
+      <include file="$(find omip_launch)/launch/asus_mounted_on_xr4000_onlywam.launch" if="$(arg camera)"/>
+    </group>
+
+    <group unless="$(arg dof7)">
+      <include file="$(find omip_launch)/launch/asus_mounted_on_xr4000_wamandbase.launch" if="$(arg camera)"/>
+    </group>
+    
+    <!-- Using groups to evaluate several bools -->
+    <group if="$(arg dof7)">        
+      <node pkg="tf" type="static_transform_publisher" name="fake_odometry" args="0.0 0.0 -1.12 -1.5707963267948966 0.0 0.0 /odom /xr4000_link  100" />
+      <group if="$(arg rviz)"> 
+        <node name="visualization" pkg="rviz" type="rviz" output="screen" args="-d $(find omip_launch)/cfg/omip.rviz" />  
+        <include file="$(find rbo_wam_description)/launch/rbo_wam_softhand_right_state_publisher.launch"/>
+      </group>   
+    </group>
+   
+    
+    <group unless="$(arg dof7)">
+      <group if="$(arg rviz)"> 
+        <node name="visualization" pkg="rviz" type="rviz" output="screen" args="-d $(find omip_launch)/cfg/omip.rviz" />  
+        <include file="$(find joint_state_renamer)/launch/rename_uman_rlab_to_ros.launch"/>
+        <include file="$(find xr4000wam_description)/launch/robot_state_publisher.launch"/>
+      </group>   
+    </group>
+    
+    <node pkg="tf" type="static_transform_publisher" name="sensor_broadcaster" args="0.0 0.26 0.54 0 0 0.70710678118 0.70710678118 /xr4000_link /laser  100" />
+    <node pkg="tf" type="static_transform_publisher" name="base_link_broadcaster" args="0.0 0.0 1.12 0 0 0.70710678118 0.70710678118 /xr4000_link /base_link  100" />
+    <node pkg="map_server" type="map_server" name="map_server" args="$(find pec)/maps/ikea.yaml"/>
+    
+    <arg name="real_localization" default="false"/>    
+    <group if="$(arg real_localization)">
+        <node pkg="sicktoolbox_wrapper" type="sicklms" name="laser_scanner" args="_port:=/dev/ttyUSB0 _baud:=38400 _resolution:=0.0001"/>
+        <include file="$(find pec)/launch/2d_localization_robotbase.launch"/>
+    </group>
+    
+    <group unless="$(arg real_localization)">        
+        <node pkg="tf" type="static_transform_publisher" name="fake_localization" args="0.35 -0.8 1.12 1.5707963267948966 0 0 /map /odom  100" if="$(arg dof7)"/>
+        <node pkg="tf" type="static_transform_publisher" name="fake_localization" args="0.35 -0.8 0.0 0 0 0 1 /map /odom  100" unless="$(arg dof7)"/>
+    </group>
+  </group>
+</launch> 

@@ -1,0 +1,5 @@
+<launch>
+  <group>
+    <rosparam file="$(find feature_tracker)/cfg/feature_tracker_cfg.yaml" command="load" />
+  </group>
+</launch>

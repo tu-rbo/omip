@@ -1,0 +1,21 @@
+<launch>
+  <include file="$(find omip_launch)/launch/asus_live_frames.launch"/> 
+  <node pkg="tf" type="static_transform_publisher" name="rgbd_b" args="0.295 0.0 -0.284 0.0 0.0 0.0 1.0 /base_link /camera_link 100"/> 
+
+</launch>
+
+  <!-- This values are if we have a model ONLY for the wam arm when the camera is horizontally oriented
+  <node pkg="tf" type="static_transform_publisher" name="rgbd_b" args="0.295 0.015 -0.284 0.0 0.0 0.0 1.0 /odom /camera_link 100"/> 
+  -->
+  
+  <!-- This values are if we have a model for the wam arm AND the xr4000 base when the camera is horizontally oriented
+  <node pkg="tf" type="static_transform_publisher" name="rgbd_b" args="0.26 0.015 -0.13 0.0 0.0 0.0 1.0 /base_link /camera_link 100"/>
+  -->
+
+  <!-- This values are if we have a model ONLY for the wam arm when the camera is NOT horizontally oriented
+  <node pkg="tf" type="static_transform_publisher" name="rgbd_b" args="0.295 0.015 -0.224 0 -0.415 0.0 /odom /camera_link 100"/>
+  -->
+  
+  <!-- This values are if we have a model for the wam arm AND the xr4000 base when the camera is NOT horizontally oriented
+  <node pkg="tf" type="static_transform_publisher" name="rgbd_b" args="0.26 0.015 -0.13 0 -0.415 0.0 /base_link /camera_link 100"/>s
+  -->

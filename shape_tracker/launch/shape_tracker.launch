@@ -1,0 +1,13 @@
+<launch>
+  <group>
+    <node name="shape_tracker" output="screen" pkg="shape_tracker" type="shape_tracker_node" respawn="false">
+      <rosparam file="$(find shape_tracker)/cfg/shape_tracker_cfg.yaml" command="load"/>
+    </node>
+  </group>
+</launch>
+
+<!--
+		launch-prefix="gprof"
+		launch-prefix="valgrind -tool=callgrind"
+-->
+

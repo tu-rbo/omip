@@ -1,0 +1,74 @@
+topic_name: "/shape_recons/shape_ext_d_and_c_rb2"
+
+preprocessing_remove_nans: true
+
+preprocessing_rar: true
+rar_num_neighbors: 20
+rar_search_radius: 0.01
+
+#0: Only normal estimation
+#1: Moving Least Squares and normal estimation
+pre_meshing_and_ne_method: 2
+
+mls_search_radius: 0.02
+
+ne_num_neighbors: 40
+ne_min_radius: -1
+
+align_normals: true
+# If true, it uses the centroid of the pc to align normals (works good with spherical pcs)
+# otherwise it uses the origin of coordinates
+use_centroid_for_normal_alignment: false
+
+show_pc_and_normals: false
+
+#1: Poisson
+#2: Marching cubes rbf -> SegFault!
+#3: Marching cubes hoppes
+#4: Convex hull
+meshing_method: 1
+
+poisson_depth: 7
+poisson_confidence: false
+poisson_samples_per_node: 25
+
+#mc_grid_resolution: 20
+mc_grid_resolution: 100
+#mc_percentage_ext_grid: 0.1
+mc_percentage_ext_grid: 0.01 
+mc_rbf_offset_sfc_disp: 0.02
+mc_iso_level: 0
+
+orient_normals_in_mesh: true
+
+#0: Nothing
+#1: Earclipping
+#2: MeshSmoothingLaplacianVTK
+#3: MeshSmoothingWindowedSincVTK
+#4: MeshSubdivisionVTK
+post_meshing_method: 0
+
+ms_boundary_smoothing: true
+ms_num_iter: 20000
+ms_feat_edge_smoothing: true
+ms_feat_angle: 3.14159/5
+ms_edge_angle: 3.14159/5
+ms_lap_convergence: 0.0001
+ms_lap_relaxation_factor: 0.0001
+ms_win_norm_coord: true
+ms_win_pass_band: 0.001
+
+clean_mesh_while_coloring: true
+interpolate_colors: true
+num_neighbors_color_interp: 20
+radius_search_color_interp: 0.005
+print_outs_color_interp: false
+
+show_pc_with_mesh: false
+
+save_mesh: true
+save_mesh_filename: "/home/roberto/mesh"
+
+
+
+

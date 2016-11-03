@@ -1,0 +1,7 @@
+<launch>
+  <group>
+    <node name="feature_tracker" output="screen" pkg="feature_tracker" type="feature_tracker_node" respawn="false">
+      <rosparam file="$(find feature_tracker)/cfg/feature_tracker_cfg.yaml" command="load" />
+    </node>
+  </group>
+</launch>

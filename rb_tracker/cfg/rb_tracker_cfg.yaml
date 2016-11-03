@@ -1,0 +1,83 @@
+# Maximum number of rigid bodies to track (static environment is one!)
+max_num_rb: 10000
+
+# Maximum number of iterations of RANSAC to find a good hypothesis for the free features
+ransac_iterations: 500
+
+# Maximum error allowed between predicted and measured feature position to consider it to STILL
+# support a RBM
+estimation_error_threshold: 0.03
+
+# Minimum motion to consider that a feature moves (between 0.01 and 0.03 is a good value, depending on noise in the feature tracking)
+static_motion_threshold: 0.03
+
+# Maximum error allowed for the inliers of a new RBM hypothesis in RANSAC
+new_rbm_error_threshold: 0.006
+
+# Maximum error allowed between the predicted and the measured position of a feature to assign it to a RBM (between 0.02 and 0.035 is a good value, depending on the size of the object)
+max_error_to_reassign_feats: 0.02 
+
+# Minimum number of features that have to support a RBM to not be deleted
+supporting_features_threshold: 5
+
+# Creation of new rigid body filters:
+# Minimum number of frames that a features has to be present to be used to create new RBM
+min_num_frames_for_new_rb: 20 
+# Minimum number of free features to trigger the generation of a new RBM (between 10 and 20 is a good value, depending on the number of features tracked)
+min_num_feats_for_new_rb: 20
+# Minimum amount of translation that a group of features has to exhibit in the min_num_frames to be considered a new rigid body (0.01m is a good value, depending on the min_num_frames, lower num of frames, lower should be this value)
+min_amount_translation_for_new_rb: 0.03
+# Minimum amount of rotation that a group of features has to exhibit in the min_num_frames to be considered a new rigid body (4 degrees is a good value, depending on the min_num_frames, lower num of frames, lower should be this value)
+min_amount_rotation_for_new_rb: 6.0
+
+# Minimum number of features supporting a rigid body to correct the predicted pose
+# If this value is lower than supporting_features_threshold the RB filter will be deleted before we begin to use the predictions as beliefs
+min_num_supporting_feats_to_correct: 8
+
+# Type of filter to track the camera motion: EKF or ICP based
+#STATIC_ENVIRONMENT_EKF_TRACKER = 1,
+#STATIC_ENVIRONMENT_ICP_TRACKER = 2
+# These values should match the enumeration in omip_common/IPTypeDefs.h
+# And the motion constraits:
+#NO_CONSTRAINED = 0,
+#NO_ROLL_PITCH = 1,
+#NO_ROLL_PITCH_TZ = 2,
+#NO_TRANSLATION = 3,
+#NO_TRANSLATION_ROLL_YAW = 4,
+#NO_ROTATION = 5,
+#NO_MOTION = 6,
+#ROBOT_XY_BASELINK_PLANE = 7
+# As defined in StaticEnvironmentFilter.h
+static_environment_type: 1
+cam_motion_constraint: 6
+
+# Min value of the noise of the coordinates of a feature. We compare this value with the value of the sensor-based estimation,
+# which depends on the depth of the feature (larger depth implies larger uncertainty)
+min_cov_meas_x: 0.03
+min_cov_meas_y: 0.03
+min_cov_meas_z: 0.03
+
+# Factor to determine the uncertainty of the coordinates of a feature. This assumes linear dependency of the uncertainty
+# with the feature depth: coord_uncertainty = feature.z / COV_MEAS_DEPTH_FACTOR
+cov_meas_depth_factor: 100.0
+
+# System noise. It is equivalent to the acceleration of the wiener process
+# These values are multiplied by DeltaT, (DeltaT/2)^2 and (DeltaT/3)^3, that usually at 30fps are 0.03, 0.0002 and 0,000001372
+# For example, 
+#   cov_sys_acc_t = 0.3 -> 1 cm/s of system noise in the velocity per frame
+#                          3.7 mm of system noise in the pose per frame
+#   cov_sys_acc_r = 2.55 -> 0.08 rad (aprox 5 degrees) of system noise in the pose per frame
+cov_sys_acc_tx: 0.02
+cov_sys_acc_ty: 0.02
+cov_sys_acc_tz: 0.02
+cov_sys_acc_rx: 0.2
+cov_sys_acc_ry: 0.2
+cov_sys_acc_rz: 0.2
+
+prior_cov_pose: 0.05
+prior_cov_vel: 0.1
+
+# Using shape-based tracking
+min_num_points_in_segment: 300
+min_probabilistic_value: 0.9
+max_fitness_score: 0.005

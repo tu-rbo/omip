@@ -1,0 +1,6 @@
+<launch>
+  <group>
+    <rosparam file="$(find omip_launch)/cfg/omip_cfg.yaml" command="load" ns="omip" />    
+  </group>
+</launch>
+    

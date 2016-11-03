@@ -1,0 +1,50 @@
+<?xml version="1.0"?>
+<package>
+  <name>shape_tracker</name>
+  <version>0.0.0</version>
+  <description>Tracker of rigid body 6D poses based on a given model of their shape on an RGB-D stream. The model is in the form of a 3D point cloud.
+  </description>
+
+  <license>MIT</license>
+  <author>Roberto Martín-Martín</author>
+  <maintainer email="roberto.martinmartin@tu-berlin.de">Roberto Martín-Martín</maintainer>
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <build_depend>cmake_modules</build_depend>
+  <build_depend>omip_common</build_depend>
+  <build_depend>omip_msgs</build_depend>
+  <build_depend>cv_bridge</build_depend> 
+  <build_depend>pcl</build_depend>
+  <build_depend>pcl_ros</build_depend>
+  <build_depend>roscpp</build_depend>
+  <build_depend>rospy</build_depend>
+  <build_depend>std_msgs</build_depend>
+  <build_depend>geometry_msgs</build_depend>
+  <build_depend>sensor_msgs</build_depend>
+  <build_depend>image_transport</build_depend>
+  <build_depend>dynamic_reconfigure</build_depend>
+  <build_depend>rb_tracker</build_depend>
+  <build_depend>pcl_conversions</build_depend>
+  <build_depend>lgsm</build_depend>
+  <build_depend>shape_reconstruction</build_depend>
+  <build_depend>cmake_modules</build_depend>
+
+  <run_depend>omip_common</run_depend>
+  <run_depend>omip_msgs</run_depend>
+  <run_depend>cv_bridge</run_depend>
+  <run_depend>pcl</run_depend>
+  <run_depend>pcl_ros</run_depend>
+  <run_depend>roscpp</run_depend>
+  <run_depend>rospy</run_depend>
+  <run_depend>std_msgs</run_depend>
+  <run_depend>geometry_msgs</run_depend>
+  <run_depend>sensor_msgs</run_depend>
+  <run_depend>image_transport</run_depend>
+  <run_depend>dynamic_reconfigure</run_depend>
+  <run_depend>message_runtime</run_depend>
+  <run_depend>rb_tracker</run_depend>
+  <run_depend>pcl_conversions</run_depend>
+  <run_depend>lgsm</run_depend>
+  <run_depend>shape_reconstruction</run_depend>
+  <run_depend>cmake_modules</run_depend>
+</package>

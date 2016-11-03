@@ -1,0 +1,7 @@
+<launch>
+  <group>
+    <node name="joint_tracker" output="screen" pkg="joint_tracker" type="joint_tracker_node">
+      <rosparam file="$(find joint_tracker)/cfg/joint_tracker_cfg.yaml" command="load" />
+    </node>
+  </group>
+</launch>

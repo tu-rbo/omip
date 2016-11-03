@@ -1,0 +1,7 @@
+<launch>
+  <group>
+    <node name="rb_tracker" output="screen" pkg="rb_tracker" type="rb_tracker_node" respawn="false">
+      <rosparam file="$(find rb_tracker)/cfg/rb_tracker_cfg.yaml" command="load" />
+    </node>
+  </group>
+</launch>
