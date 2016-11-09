@@ -28,7 +28,7 @@ ros-indigo-openni2-launch ros-indigo-openni2-camera ros-indigo-cmake-modules ros
  - RVIZ plugin to compute the area of the image occluded by the robot (you will need a URDF model of your robot!):<br/>
 ```git clone https://github.com/roberto-martinmartin/rviz_plugin_camerarenderpublisher.git```
  - Libpointmatcher (optional, to run the newest version of the shape tracker). Follow the instructions [here](https://github.com/ethz-asl/libpointmatcher/blob/master/doc/Compilation.md) 
-- Download one of the the demo rosbags from [here](https://owncloud.tu-berlin.de/index.php/s/uDSTdI3FDQagfL1) (several GB!) or start an openni node. The rosbags are compress, you will need to descompress them.
+- Download one of the the demo rosbags from [here](https://owncloud.tu-berlin.de/index.php/s/uDSTdI3FDQagfL1) (several GB!) or start an openni node. The rosbags are compressed, you will need to descompress them.
 - Start a roscore
 - Run OMIP. For example:<br/>
 ```rosrun omip_launch omip.sh --omip=1 --rgbd=0```
