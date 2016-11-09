@@ -28,18 +28,21 @@ ros-indigo-openni2-launch ros-indigo-openni2-camera ros-indigo-cmake-modules ros
  - RVIZ plugin to compute the area of the image occluded by the robot (you will need a URDF model of your robot!):<br/>
 ```git clone https://github.com/roberto-martinmartin/rviz_plugin_camerarenderpublisher.git```
  - Libpointmatcher (optional, to run the newest version of the shape tracker). Follow the instructions [here](https://github.com/ethz-asl/libpointmatcher/blob/master/doc/Compilation.md) 
-- Download one of the the demo rosbags from [here](https://owncloud.tu-berlin.de/index.php/s/uDSTdI3FDQagfL1) (several GB!) or start an openni node.
+- Download one of the the demo rosbags from [here](https://owncloud.tu-berlin.de/index.php/s/uDSTdI3FDQagfL1) (several GB!) or start an openni node. The rosbags are compress, you will need to descompress them.
 - Start a roscore
 - Run OMIP. For example:<br/>
 ```rosrun omip_launch omip.sh --omip=1 --rgbd=0```
 - Play the demo bag or use the RGB-D stream provided by the openni node.
 
 You can launch OMIP with 3 different system architectures:
+
 1. **Main architecture**. Three estimation levels: feature tracking, feature-based rigid body tracking, kinematic model estimation. This option can execute only using RGB-D images and therefore requires less computational power. 
 To try this option, download one of the rosbags with the "_imgs" suffix and launch OMIP using the option "--omip=1" (or "--omip=2" if you want that the terminals 
 remain open after finishing the execution, for debugging purposes).
+
 2. Four estimation levels: feature tracking, feature-based rigid body tracking, kinematic model estimation, shape reconstruction. This option requires point clouds and is therefore computationally more expensive. 
 To try this option, download one of the rosbags with the "_full" suffix and launch OMIP using the option "--omip=3".
+
 3. Five estimation levels: feature tracking, feature-based rigid body tracking, kinematic model estimation, shape reconstruction, shape-based rigid body tracking. This option requires also point clouds and is therefore computationally more expensive. 
 To try this option, download one of the rosbags with the "_full" suffix and launch OMIP using the option "--omip=4".
 
