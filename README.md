@@ -16,8 +16,8 @@ The framework is based on the work presented [here](http://www.robotics.tu-berli
 ## Installation
 Assuming you already have installed ROS and have created a catkin environment.
 - Check out OMIP and omip_msgs from the repository in your catkin environment:<br/>
-```git clone https://gitlab.tubit.tu-berlin.de/roberto.martinmartin/omip.git```<br/>
-```git clone https://gitlab.tubit.tu-berlin.de/roberto.martinmartin/omip_msgs.git```
+```git clone https://github.com/tu-rbo/omip.git```<br/>
+```git clone https://github.com/tu-rbo/omip_msgs.git```
 - Install dependencies:<br/>
  - Boost, Eigen library.
  - Terminator: allows to split a window into several terminals. When you install it, it will be probably set as default when you open new terminals. If you want to go back to the default gnome terminal, execute after installing terminator:<br/>
