@@ -20,7 +20,9 @@ Assuming you already have installed ROS and have created a catkin environment.
 ```git clone https://gitlab.tubit.tu-berlin.de/roberto.martinmartin/omip_msgs.git```
 - Install dependencies:<br/>
  - Boost, Eigen library.
- - Terminator (special terminal)
+ - Terminator: allows to split a window into several terminals. When you install it, it will be probably set as default when you open new terminals. If you want to go back to the default gnome terminal, execute after installing terminator:
+```gsettings set org.gnome.desktop.default-applications.terminal exec 'gnome-terminal'```
+ - Copy omip_launch/cfg/terminator/config to ~/.config/terminator/ . This file contains predefine configurations to launch OMIP within a single terminator window.
  - ROS packages OpenCV, PCL, openni, openni2, cmake-modules, BFL:<br/>
 ```sudo apt-get install ros-indigo-pcl-ros ros-indigo-openni-launch ros-indigo-openni-camera
 ros-indigo-openni2-launch ros-indigo-openni2-camera ros-indigo-cmake-modules ros-indigo-bfl```
