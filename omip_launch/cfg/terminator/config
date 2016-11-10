@@ -153,7 +153,7 @@
       type = Terminal
       order = 1
       parent = child2
-  [[ttt]]
+  [[omip]]
     [[[child0]]]
       position = 57:21
       type = Window

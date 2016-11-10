@@ -13,28 +13,47 @@ Oliver Brock (oliver.brock@tu-berlin.de)
 OMIP creates a interconnected group of recursive loops that cooperate to quickly perceive robot's environment using knowledge about interactions and how they affect the sensor signals.
 The framework is based on the work presented [here](http://www.robotics.tu-berlin.de/fileadmin/fg170/Publikationen_pdf/martinmartin_ip_iros_2014.pdf) and [here](http://www.redaktion.tu-berlin.de/fileadmin/fg170/Publikationen_pdf/martin_hoefer_15_iros_sr_opt.pdf).
 
-## Quickstart
+## Installation
 Assuming you already have installed ROS and have created a catkin environment.
 - Check out OMIP and omip_msgs from the repository in your catkin environment:<br/>
-```git clone https://gitlab.tubit.tu-berlin.de/roberto.martinmartin/omip.git```
+```git clone https://gitlab.tubit.tu-berlin.de/roberto.martinmartin/omip.git```<br/>
 ```git clone https://gitlab.tubit.tu-berlin.de/roberto.martinmartin/omip_msgs.git```
 - Install dependencies:<br/>
  - Boost, Eigen library.
- - Terminator: allows to split a window into several terminals. When you install it, it will be probably set as default when you open new terminals. If you want to go back to the default gnome terminal, execute after installing terminator:
-```gsettings set org.gnome.desktop.default-applications.terminal exec 'gnome-terminal'```
- - Copy omip_launch/cfg/terminator/config to ~/.config/terminator/ . This file contains predefine configurations to launch OMIP within a single terminator window.
+ - Terminator: allows to split a window into several terminals. When you install it, it will be probably set as default when you open new terminals. If you want to go back to the default gnome terminal, execute after installing terminator:<br/>
+```gsettings set org.gnome.desktop.default-applications.terminal exec 'gnome-terminal'```<br/>
+ - Create a backup of the config file for terminator and then copy omip_launch/cfg/terminator/config to ~/.config/terminator/ . This file contains predefine configurations to launch OMIP within a single terminator window.<br/>
+```cp ~/.config/terminator/config ~/.config/terminator/config.bak```<br/>
+```cp omip/omip_launch/cfg/terminator/config ~/.config/terminator/```<br/>
  - ROS packages OpenCV, PCL, openni, openni2, cmake-modules, BFL:<br/>
 ```sudo apt-get install ros-indigo-pcl-ros ros-indigo-openni-launch ros-indigo-openni-camera
-ros-indigo-openni2-launch ros-indigo-openni2-camera ros-indigo-cmake-modules ros-indigo-bfl```
- - Copy omip/thirdparty/bflConfig.cmake into your_ros_install_dir/share/bfl.
- - RVIZ plugin to compute the area of the image occluded by the robot (you will need a URDF model of your robot!):<br/>
-```git clone https://github.com/roberto-martinmartin/rviz_plugin_camerarenderpublisher.git```
- - Libpointmatcher (optional, to run the newest version of the shape tracker). Follow the instructions [here](https://github.com/ethz-asl/libpointmatcher/blob/master/doc/Compilation.md) 
-- Download one of the the demo rosbags from [here](https://owncloud.tu-berlin.de/index.php/s/uDSTdI3FDQagfL1) (several GB!) or start an openni node. The rosbags are compressed, you will need to descompress them.
+ros-indigo-openni2-launch ros-indigo-openni2-camera ros-indigo-cmake-modules ros-indigo-bfl```<br/>
+ - Bayesian Filter Library by TU Leuven:<br/>
+```sudo apt-get install ros-indigo-bfl```<br/>
+then copy omip/thirdparty/bflConfig.cmake into your_ros_install_dir/share/bfl with:<br/>
+```sudo cp omip/omip/third_party/bflConfig.cmake /opt/ros/indigo/share/bfl/```<br/>
+ - [Optional to run the occlusion detector] RVIZ plugin to compute the area of the image occluded by the robot (you will need a URDF model of your robot!):<br/>
+```git clone https://github.com/roberto-martinmartin/rviz_plugin_camerarenderpublisher.git```<br/>
+ - [Optional to run the latest version of the shape-based tracker] Libpointmatcher by ETH Zurich:<br/>
+```sudo apt-get install ros-indigo-bfl```<br/>
+then create a backup of the libpointmatcherConfig.cmake in your_ros_install_dir/share/libpointmacher and copy the one in omip/omip/third_party:<br/>
+```sudo cp your_ros_install_dir/share/libpointmacher/libpointmatcherConfig.cmake your_ros_install_dir/share/libpointmacher/libpointmatcherConfig.cmake.bak```<br/>
+and<br/>
+```sudo cp omip/omip/third_party/libpointmatcherConfig.cmake your_ros_install_dir/share/libpointmacher/```<br/>
+You can skip this step if you only want to use the feature-based tracker by adding a CATKIN_IGNORE file into the shape_tracker package:<br/>
+```touch omip/shape_tracker/CATKIN_IGNORE```
+- Build the packages:<br/>
+```catkin build (omip)```
+- Download one of the the demo rosbags from [here](https://owncloud.tu-berlin.de/index.php/s/uDSTdI3FDQagfL1) (several GB!) or start an openni node. The rosbags are compressed, you will need to decompress them with:<br/>
+```rosbag decompress rosbagname.bag```<br/>
+puma_demo is the smallest bag.
 - Start a roscore
 - Run OMIP. For example:<br/>
-```rosrun omip_launch omip.sh --omip=1 --rgbd=0```
-- Play the demo bag or use the RGB-D stream provided by the openni node.
+```rosrun omip_launch omip.sh --omip=1 --rgbd=0```<br/>
+The options --omip=1 launches only the feature-based tracker and no shape reconstruction, and --rgbd=0 avoids launching an openni node. To see other options run:<br/>
+```rosrun omip_launch omip.sh --help```
+- Play the demo bag or use the RGB-D stream provided by the openni node:<br/>
+```rosbag play rosbagname.bag```<br/>
 
 You can launch OMIP with 3 different system architectures:
 

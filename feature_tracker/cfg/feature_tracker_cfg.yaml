@@ -9,9 +9,9 @@ camera_info_topic: /camera/rgb/camera_info
 rgbd_pc_topic: /camera/depth_registered/points
 
 # Use these topics for bags generated with openni
-#depth_img_topic: /camera/depth_registered/image_rect
+depth_img_topic: /camera/depth_registered/image_rect
 # Use these topics for bags generated with openni2
-depth_img_topic: /camera/depth_registered/hw_registered/image_rect_raw
+#depth_img_topic: /camera/depth_registered/hw_registered/image_rect_raw
 
 # Self-occlusion filter image topic
 selfocclusionfilter_img_topic: selfocclusion_img
