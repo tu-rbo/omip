@@ -14,7 +14,7 @@ OMIP creates a interconnected group of recursive loops that cooperate to quickly
 The framework is based on the work presented [here](http://www.robotics.tu-berlin.de/fileadmin/fg170/Publikationen_pdf/martinmartin_ip_iros_2014.pdf) and [here](http://www.redaktion.tu-berlin.de/fileadmin/fg170/Publikationen_pdf/martin_hoefer_15_iros_sr_opt.pdf).
 
 ## Installation
-Assuming you already have installed ROS and have created a catkin environment.
+This code has been tested with ROS Indigo on Ubuntu 14.04 LTS. Assuming you already have installed ROS and have created a catkin environment.
 - Check out OMIP and omip_msgs from the repository in your catkin environment:<br/>
 ```git clone https://github.com/tu-rbo/omip.git```<br/>
 ```git clone https://github.com/tu-rbo/omip_msgs.git```
@@ -34,6 +34,9 @@ then copy omip/thirdparty/bflConfig.cmake into your_ros_install_dir/share/bfl wi
 ```sudo cp omip/omip/third_party/bflConfig.cmake /opt/ros/indigo/share/bfl/```<br/>
  - [Optional to run the occlusion detector] RVIZ plugin to compute the area of the image occluded by the robot (you will need a URDF model of your robot!):<br/>
 ```git clone https://github.com/roberto-martinmartin/rviz_plugin_camerarenderpublisher.git```<br/>
+ - [Optional to visualize the estimated rigid body poses with covariance in RVIZ] RVIZ plugin by LAAS-CNRS Toulousse:<br/>
+```git clone https://github.com/laas/rviz_plugin_covariance.git```<br/>
+then switch to Indigo branch.
  - [Optional to run the latest version of the shape-based tracker] Libpointmatcher by ETH Zurich:<br/>
 ```sudo apt-get install ros-indigo-bfl```<br/>
 then create a backup of the libpointmatcherConfig.cmake in your_ros_install_dir/share/libpointmacher and copy the one in omip/omip/third_party:<br/>
