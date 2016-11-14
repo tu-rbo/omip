@@ -655,6 +655,7 @@ void FeatureTrackerNode::_InitializeVariables()
         this->_re_filter = new PointFeatureTracker(this->_loop_period_ns,
                                                   this->_subscribe_to_pc,
                                                   this->_namespace);
+        ((PointFeatureTracker*)this->_re_filter)->setSelfOcclusionPositive(_occlusion_mask_positive);
     }
     else
     {
