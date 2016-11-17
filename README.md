@@ -14,7 +14,7 @@ OMIP creates a interconnected group of recursive loops that cooperate to quickly
 The framework is based on the work presented [here](http://www.robotics.tu-berlin.de/fileadmin/fg170/Publikationen_pdf/martinmartin_ip_iros_2014.pdf) and [here](http://www.redaktion.tu-berlin.de/fileadmin/fg170/Publikationen_pdf/martin_hoefer_15_iros_sr_opt.pdf).
 
 ## Installation
-This code has been tested with ROS Indigo on Ubuntu 14.04 LTS. Assuming you already have installed ROS and have created a catkin environment.
+This code has been tested with ROS Indigo on Ubuntu 14.04 LTS. For a less tested Ubuntu 16.04 ROS Kinetic version, switch from master to kinetic branch. Assuming you already have installed ROS and have created a catkin environment.
 - Check out OMIP and omip_msgs from the repository in your catkin environment:<br/>
 ```git clone https://github.com/tu-rbo/omip.git```<br/>
 ```git clone https://github.com/tu-rbo/omip_msgs.git```
@@ -27,7 +27,7 @@ This code has been tested with ROS Indigo on Ubuntu 14.04 LTS. Assuming you alre
 ```cp omip/omip_launch/cfg/terminator/config ~/.config/terminator/```<br/>
  - ROS packages OpenCV, PCL, openni, openni2, cmake-modules, BFL:<br/>
 ```sudo apt-get install ros-indigo-pcl-ros ros-indigo-openni-launch ros-indigo-openni-camera
-ros-indigo-openni2-launch ros-indigo-openni2-camera ros-indigo-cmake-modules ros-indigo-bfl```<br/>
+ros-indigo-openni2-launch ros-indigo-openni2-camera ros-indigo-cmake-modules```<br/>
  - Bayesian Filter Library by TU Leuven:<br/>
 ```sudo apt-get install ros-indigo-bfl```<br/>
 then copy omip/thirdparty/bflConfig.cmake into your_ros_install_dir/share/bfl with:<br/>
@@ -38,7 +38,7 @@ then copy omip/thirdparty/bflConfig.cmake into your_ros_install_dir/share/bfl wi
 ```git clone https://github.com/laas/rviz_plugin_covariance.git```<br/>
 then switch to Indigo branch.
  - [Optional to run the latest version of the shape-based tracker] Libpointmatcher by ETH Zurich:<br/>
-```sudo apt-get install ros-indigo-bfl```<br/>
+```sudo apt-get install ros-indigo-libpointmatcher```<br/>
 then create a backup of the libpointmatcherConfig.cmake in your_ros_install_dir/share/libpointmacher and copy the one in omip/omip/third_party:<br/>
 ```sudo cp your_ros_install_dir/share/libpointmacher/libpointmatcherConfig.cmake your_ros_install_dir/share/libpointmacher/libpointmatcherConfig.cmake.bak```<br/>
 and<br/>
