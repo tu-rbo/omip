@@ -24,11 +24,11 @@ find_package(catkin REQUIRED COMPONENTS
   rosbag
   lgsm)
 
-find_package(OpenCV 2 REQUIRED)
+find_package(OpenCV REQUIRED) 
 
 find_package(PCL REQUIRED)
 find_package(Boost REQUIRED COMPONENTS signals thread)
-find_package(Eigen REQUIRED)
+find_package(Eigen 2 REQUIRED)
 
 generate_dynamic_reconfigure_options(
   cfg/FeatureTrackerDynReconf.cfg

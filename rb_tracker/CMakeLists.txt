@@ -26,7 +26,7 @@ find_package(catkin REQUIRED COMPONENTS
   cmake_modules)
 
 find_package(bfl REQUIRED)
-find_package(OpenCV 2 REQUIRED)
+find_package(OpenCV REQUIRED)
 find_package(PCL REQUIRED)
 find_package(Boost REQUIRED COMPONENTS signals thread)
 find_package(Eigen REQUIRED)
