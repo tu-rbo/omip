@@ -83,8 +83,8 @@ endif()
 # flag project as catkin-based to distinguish if a find_package()-ed project is a catkin project
 set(bfl_FOUND_CATKIN_PROJECT TRUE)
 
-set(bfl_INCLUDE_DIRS ${ROS_ROOT}/../../include/bfl)
-set(bfl_LIBRARIES_DIRS ${ROS_ROOT}/../../lib)
+set(bfl_INCLUDE_DIRS $ENV{ROS_ROOT}/../../include/bfl)
+set(bfl_LIBRARIES_DIRS $ENV{ROS_ROOT}/../../lib)
 set(bfl_LIBRARIES ${bfl_LIBRARIES_DIRS}/liborocos-bfl.so)
 
 set(pkg_cfg_extras "")
