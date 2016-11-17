@@ -14,7 +14,7 @@ OMIP creates a interconnected group of recursive loops that cooperate to quickly
 The framework is based on the work presented [here](http://www.robotics.tu-berlin.de/fileadmin/fg170/Publikationen_pdf/martinmartin_ip_iros_2014.pdf) and [here](http://www.redaktion.tu-berlin.de/fileadmin/fg170/Publikationen_pdf/martin_hoefer_15_iros_sr_opt.pdf).
 
 ## Installation
-This code has been tested with ROS Indigo on Ubuntu 14.04 LTS. For a less tested Ubuntu 16.04 ROS Kinetic version, switch from master to kinetic branch. Assuming you already have installed ROS and have created a catkin environment.
+This code has been tested with ROS Indigo on Ubuntu 14.04 LTS. You are now using a less tested Ubuntu 16.04 ROS Kinetic version (kinetic branch). Assuming you already have installed ROS and have created a catkin environment.
 - Check out OMIP and omip_msgs from the repository in your catkin environment:<br/>
 ```git clone https://github.com/tu-rbo/omip.git```<br/>
 ```git clone https://github.com/tu-rbo/omip_msgs.git```
