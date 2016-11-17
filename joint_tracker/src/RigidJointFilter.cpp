@@ -108,7 +108,7 @@ void RigidJointFilter::estimateMeasurementHistoryLikelihood()
 
         if(rotation_error_angle > this->_rig_max_rotation)
         {
-            _motion_memory_prior = true;
+            _motion_memory_prior = 0.0;
         }
 
         accumulated_error += translation_error + fabs(rotation_error_angle);
