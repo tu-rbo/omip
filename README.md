@@ -19,32 +19,29 @@ This code has been tested with ROS Indigo on Ubuntu 14.04 LTS. For a less tested
 ```git clone https://github.com/tu-rbo/omip.git```<br/>
 ```git clone https://github.com/tu-rbo/omip_msgs.git```
 - Install dependencies:<br/>
- - Boost, Eigen library.
+ - Boost, Eigen library. The version of Eigen3 that is currently in the Ubuntu 16.04 package manager is a beta version and it causes the LGSM library (library for Lie algebra-group computation) to not compile. We included a deb file with an older working version of libeigen3 in omip/omip/third_party/libeigen3-dev_3.2.5-4_all.deb. Be careful! It could affect other programs using the beta version of eigen. To force to install it:<br/>
+```sudo dpkg --force-downgrade -i omip/omip/third_party/libeigen3-dev_3.2.5-4_all.deb```<br/>
  - Terminator: allows to split a window into several terminals. When you install it, it will be probably set as default when you open new terminals. If you want to go back to the default gnome terminal, execute after installing terminator:<br/>
 ```gsettings set org.gnome.desktop.default-applications.terminal exec 'gnome-terminal'```<br/>
  - Create a backup of the config file for terminator and then copy omip_launch/cfg/terminator/config to ~/.config/terminator/ . This file contains predefine configurations to launch OMIP within a single terminator window.<br/>
 ```cp ~/.config/terminator/config ~/.config/terminator/config.bak```<br/>
 ```cp omip/omip_launch/cfg/terminator/config ~/.config/terminator/```<br/>
  - ROS packages OpenCV, PCL, openni, openni2, cmake-modules, BFL:<br/>
-```sudo apt-get install ros-indigo-pcl-ros ros-indigo-openni-launch ros-indigo-openni-camera
-ros-indigo-openni2-launch ros-indigo-openni2-camera ros-indigo-cmake-modules```<br/>
+```sudo apt-get install ros-kinetic-pcl-ros ros-kinetic-openni-launch ros-kinetic-openni-camera
+ros-kinetic-openni2-launch ros-kinetic-openni2-camera ros-kinetic-cmake-modules```<br/>
  - Bayesian Filter Library by TU Leuven:<br/>
-```sudo apt-get install ros-indigo-bfl```<br/>
+```sudo apt-get install ros-kinetic-bfl```<br/>
 then copy omip/thirdparty/bflConfig.cmake into your_ros_install_dir/share/bfl with:<br/>
-```sudo cp omip/omip/third_party/bflConfig.cmake /opt/ros/indigo/share/bfl/```<br/>
+```sudo cp omip/omip/third_party/bflConfig.cmake /opt/ros/kinetic/share/bfl/```<br/>
  - [Optional to run the occlusion detector] RVIZ plugin to compute the area of the image occluded by the robot (you will need a URDF model of your robot!):<br/>
 ```git clone https://github.com/roberto-martinmartin/rviz_plugin_camerarenderpublisher.git```<br/>
  - [Optional to visualize the estimated rigid body poses with covariance in RVIZ] RVIZ plugin by LAAS-CNRS Toulousse:<br/>
 ```git clone https://github.com/laas/rviz_plugin_covariance.git```<br/>
 then switch to Indigo branch.
- - [Optional to run the latest version of the shape-based tracker] Libpointmatcher by ETH Zurich:<br/>
-```sudo apt-get install ros-indigo-libpointmatcher```<br/>
-then create a backup of the libpointmatcherConfig.cmake in your_ros_install_dir/share/libpointmacher and copy the one in omip/omip/third_party:<br/>
-```sudo cp your_ros_install_dir/share/libpointmacher/libpointmatcherConfig.cmake your_ros_install_dir/share/libpointmacher/libpointmatcherConfig.cmake.bak```<br/>
-and<br/>
-```sudo cp omip/omip/third_party/libpointmatcherConfig.cmake your_ros_install_dir/share/libpointmacher/```<br/>
-You can skip this step if you only want to use the feature-based tracker by adding a CATKIN_IGNORE file into the shape_tracker package:<br/>
-```touch omip/shape_tracker/CATKIN_IGNORE```
+ - Shape tracker requires a package (libpointmatcher) that is not available for ROS kinetic. You can try to install Libpointmatcher directly from source. Currently, shape tracker will be ignore by catkin. If you want to try to compile and use it, remove the CATKIN_IGNORE file in the shape_tracker folder:<br/>
+```rm omip/shape_tracker/CATKIN_IGNORE```
+ - Shape reconstruction uses some VTK files that does not compile on this Ubuntu-ROS version. Currently, shape reconstruction will be ignore by catkin. If you want to try to compile and use it, remove the CATKIN_IGNORE file in the shape_roconstruction folder:<br/>
+```rm omip/shape_reconstruction/CATKIN_IGNORE```
 - Build the packages:<br/>
 ```catkin build (omip)```
 - Download one of the the demo rosbags from [here](https://owncloud.tu-berlin.de/index.php/s/uDSTdI3FDQagfL1) (several GB!) or start an openni node. The rosbags are compressed, you will need to decompress them with:<br/>
