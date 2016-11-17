@@ -240,14 +240,7 @@ void PointFeatureTracker::_ProcessDepthImg()
     double minVal, maxVal;
     cv::Point minpt,maxpt;
 
-    if(this->_depth_img_ptr->encoding == "32FC1")
-    {
-        float infinity = std::numeric_limits<float>::infinity();
-        cv::minMaxLoc(this->_depth_img_ptr->image, &minVal, &maxVal, &minpt, &maxpt, this->_depth_img_ptr->image != infinity);
-    }else{
-        uint16_t infinity = std::numeric_limits<uint16_t>::infinity();
-        cv::minMaxLoc(this->_depth_img_ptr->image, &minVal, &maxVal, &minpt, &maxpt, this->_depth_img_ptr->image != infinity);
-    }
+    cv::minMaxLoc(this->_depth_img_ptr->image, &minVal, &maxVal, &minpt, &maxpt,  this->_depth_img_ptr->image == this->_depth_img_ptr->image);
 
     // If we set a ROI we use it
     if(this->_max_allowed_depth > 0)
