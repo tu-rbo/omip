@@ -39,8 +39,6 @@ Projectname = {Interactive Perception}
 //ROS and OpenCV
 #include <opencv2/features2d/features2d.hpp>
 #include <opencv2/core/core.hpp>
-#include <opencv2/core/gpumat.hpp>
-#include <opencv2/gpu/gpu.hpp>
 #include <camera_info_manager/camera_info_manager.h>
 #include <feature_tracker/FeatureTrackerDynReconfConfig.h>
 
