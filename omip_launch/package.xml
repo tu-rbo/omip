@@ -4,8 +4,11 @@
   <description>
   This package only contains launch files for the complete OMIP system.
   </description>
-  <maintainer email="roberto.martinmartin@tu-berlin.de">Roberto Martin Martin</maintainer>
-  <license>BSD</license>
+  
+  <license>MIT</license>
+  <author>Roberto Martín-Martín</author>
+  <maintainer email="roberto.martinmartin@tu-berlin.de">Roberto Martín-Martín</maintainer>
+  <url>http://wiki.ros.org/omip</url>
 
   <buildtool_depend>catkin</buildtool_depend>
 
