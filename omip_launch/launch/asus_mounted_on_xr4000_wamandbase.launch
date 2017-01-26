@@ -6,8 +6,7 @@
     <arg name="depth_registration" value="true" />
   </include>
   
-  <node pkg="tf" type="static_transform_publisher" name="rgbd_b" args="0.26 0.015 -0.13 0 -0.415 0.0 /base_link /camera_link 100"/>
-
+  <node pkg="tf" type="static_transform_publisher" name="rgbd_b" args="-0.015, 0.260, 1.102 0.146, -0.146, 0.692, 0.692 /base_link /camera_link 100"/>
 </launch>
 
   

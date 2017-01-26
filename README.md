@@ -25,6 +25,7 @@ This code has been tested with ROS Indigo on Ubuntu 14.04 LTS. You are now using
 ```gsettings set org.gnome.desktop.default-applications.terminal exec 'gnome-terminal'```<br/>
  - Create a backup of the config file for terminator and then copy omip_launch/cfg/terminator/config to ~/.config/terminator/ . This file contains predefine configurations to launch OMIP within a single terminator window.<br/>
 ```cp ~/.config/terminator/config ~/.config/terminator/config.bak```<br/>
+Create the folder ~/.config/terminator before copying the file if it does not exist.
 ```cp omip/omip_launch/cfg/terminator/config ~/.config/terminator/```<br/>
  - ROS packages OpenCV, PCL, openni, openni2, cmake-modules, BFL:<br/>
 ```sudo apt-get install ros-kinetic-pcl-ros ros-kinetic-openni-launch ros-kinetic-openni-camera
