@@ -556,10 +556,10 @@ void MultiJointTrackerNode::_publishState() const
         joint_msg.parent_rb_id = km_it.first.first;
         joint_msg.child_rb_id = km_it.first.second;
 
-        joint_msg.rigid_likelihood = km_it.second->getJointFilter(RIGID_JOINT)->getLikelihoodOfLastMeasurements();
-        joint_msg.discon_likelihood = km_it.second->getJointFilter(DISCONNECTED_JOINT)->getLikelihoodOfLastMeasurements();
-        joint_msg.rev_likelihood = km_it.second->getJointFilter(REVOLUTE_JOINT)->getLikelihoodOfLastMeasurements();
-        joint_msg.prism_likelihood = km_it.second->getJointFilter(PRISMATIC_JOINT)->getLikelihoodOfLastMeasurements();
+        joint_msg.rigid_probability = km_it.second->getJointFilter(RIGID_JOINT)->getProbabilityOfJointFilter();
+        joint_msg.discon_probability = km_it.second->getJointFilter(DISCONNECTED_JOINT)->getProbabilityOfJointFilter();
+        joint_msg.rev_probability = km_it.second->getJointFilter(REVOLUTE_JOINT)->getProbabilityOfJointFilter();
+        joint_msg.prism_probability = km_it.second->getJointFilter(PRISMATIC_JOINT)->getProbabilityOfJointFilter();
 
         Eigen::Vector3d temp_eigen = km_it.second->getJointFilter(PRISMATIC_JOINT)->getJointPositionInRRBFrame();
         geometry_msgs::Point temp_ros;

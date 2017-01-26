@@ -22,7 +22,7 @@
     
     <!-- Using groups to evaluate several bools -->
     <group if="$(arg dof7)">        
-      <node pkg="tf" type="static_transform_publisher" name="fake_odometry" args="0.0 0.0 -1.12 -1.5707963267948966 0.0 0.0 /odom /xr4000_link  100" />
+      <node pkg="tf" type="static_transform_publisher" name="fake_odometry" args="0.0 0.0 0 0 0.0 0.0 /odom /base_link  100" />
       <group if="$(arg rviz)"> 
         <node name="visualization" pkg="rviz" type="rviz" output="screen" args="-d $(find omip_launch)/cfg/omip.rviz" />  
         <include file="$(find rbo_wam_description)/launch/rbo_wam_softhand_right_state_publisher.launch"/>
@@ -38,8 +38,7 @@
       </group>   
     </group>
     
-    <node pkg="tf" type="static_transform_publisher" name="sensor_broadcaster" args="0.0 0.26 0.54 0 0 0.70710678118 0.70710678118 /xr4000_link /laser  100" />
-    <node pkg="tf" type="static_transform_publisher" name="base_link_broadcaster" args="0.0 0.0 1.12 0 0 0.70710678118 0.70710678118 /xr4000_link /base_link  100" />
+    <node pkg="tf" type="static_transform_publisher" name="sensor_broadcaster" args="0.0 0.26 0.54 0 0 0.70710678118 0.70710678118 /base_link /laser  100" />
     <node pkg="map_server" type="map_server" name="map_server" args="$(find pec)/maps/ikea.yaml"/>
     
     <arg name="real_localization" default="false"/>    
@@ -49,8 +48,7 @@
     </group>
     
     <group unless="$(arg real_localization)">        
-        <node pkg="tf" type="static_transform_publisher" name="fake_localization" args="0.35 -0.8 1.12 1.5707963267948966 0 0 /map /odom  100" if="$(arg dof7)"/>
-        <node pkg="tf" type="static_transform_publisher" name="fake_localization" args="0.35 -0.8 0.0 0 0 0 1 /map /odom  100" unless="$(arg dof7)"/>
+        <node pkg="tf" type="static_transform_publisher" name="fake_localization" args="0.35 -0.8 0.0 0 0 0 1 /map /odom  100" /> 
     </group>
   </group>
 </launch> 

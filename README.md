@@ -25,6 +25,7 @@ This code has been tested with ROS Indigo on Ubuntu 14.04 LTS. For a less tested
  - Create a backup of the config file for terminator and then copy omip_launch/cfg/terminator/config to ~/.config/terminator/ . This file contains predefine configurations to launch OMIP within a single terminator window.<br/>
 ```cp ~/.config/terminator/config ~/.config/terminator/config.bak```<br/>
 ```cp omip/omip_launch/cfg/terminator/config ~/.config/terminator/```<br/>
+Create the folder ~/.config/terminator before copying the file if it does not exist.
  - ROS packages OpenCV, PCL, openni, openni2, cmake-modules, BFL:<br/>
 ```sudo apt-get install ros-indigo-pcl-ros ros-indigo-openni-launch ros-indigo-openni-camera
 ros-indigo-openni2-launch ros-indigo-openni2-camera ros-indigo-cmake-modules```<br/>
@@ -40,9 +41,9 @@ then switch to Indigo branch.
  - [Optional to run the latest version of the shape-based tracker] Libpointmatcher by ETH Zurich:<br/>
 ```sudo apt-get install ros-indigo-libpointmatcher```<br/>
 then create a backup of the libpointmatcherConfig.cmake in your_ros_install_dir/share/libpointmacher and copy the one in omip/omip/third_party:<br/>
-```sudo cp your_ros_install_dir/share/libpointmacher/libpointmatcherConfig.cmake your_ros_install_dir/share/libpointmacher/libpointmatcherConfig.cmake.bak```<br/>
+```sudo cp /opt/ros/indigo/share/libpointmacher/cmake/libpointmatcherConfig.cmake /opt/ros/indigo/share/libpointmacher/cmake/libpointmatcherConfig.cmake.bak```<br/>
 and<br/>
-```sudo cp omip/omip/third_party/libpointmatcherConfig.cmake your_ros_install_dir/share/libpointmacher/```<br/>
+```sudo cp omip/omip/third_party/libpointmatcherConfig.cmake /opt/ros/indigo/share/libpointmacher/cmake/```<br/>
 You can skip this step if you only want to use the feature-based tracker by adding a CATKIN_IGNORE file into the shape_tracker package:<br/>
 ```touch omip/shape_tracker/CATKIN_IGNORE```
 - Build the packages:<br/>

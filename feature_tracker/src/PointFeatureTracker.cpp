@@ -240,7 +240,8 @@ void PointFeatureTracker::_ProcessDepthImg()
     double minVal, maxVal;
     cv::Point minpt,maxpt;
 
-    if(this->_depth_img_ptr->encoding == "32FC1")
+#if(CV_MAJOR_VERSION == 2)
+        if(this->_depth_img_ptr->encoding == "32FC1")
     {
         float infinity = std::numeric_limits<float>::infinity();
         cv::minMaxLoc(this->_depth_img_ptr->image, &minVal, &maxVal, &minpt, &maxpt, this->_depth_img_ptr->image != infinity);
@@ -248,6 +249,11 @@ void PointFeatureTracker::_ProcessDepthImg()
         uint16_t infinity = std::numeric_limits<uint16_t>::infinity();
         cv::minMaxLoc(this->_depth_img_ptr->image, &minVal, &maxVal, &minpt, &maxpt, this->_depth_img_ptr->image != infinity);
     }
+#elif(CV_MAJOR_VERSION==3)
+    cv::minMaxLoc(this->_depth_img_ptr->image, &minVal, &maxVal, &minpt, &maxpt, cv::Mat(this->_depth_img_ptr->image == this->_depth_img_ptr->image) );
+#else
+#error CV major version is not 2 or 3
+#endif
 
     // If we set a ROI we use it
     if(this->_max_allowed_depth > 0)
@@ -264,6 +270,7 @@ void PointFeatureTracker::_ProcessDepthImg()
     }
 
     this->_depth_img_ptr->image.convertTo(this->_aux1_mat, CV_8U, 255.0/(maxVal - minVal), -minVal * 255.0/(maxVal - minVal));
+
     this->_aux1_mat.setTo(0, this->_depth_img_ptr->image > maxVal);
 
     this->_aux1_mat.setTo(0, this->_depth_img_ptr->image < minVal);
@@ -283,7 +290,6 @@ void PointFeatureTracker::_ProcessDepthImg()
               this->_canny_low_threshold * this->_canny_ratio,
               this->_canny_kernel_size, false);
 
-
     // Invert the resulting edges: edges are 0, not edges are 255
     cv::threshold(this->_canny_edges_mat, this->_canny_edges_mat, 0, 255, cv::THRESH_BINARY_INV);
 
@@ -293,9 +299,7 @@ void PointFeatureTracker::_ProcessDepthImg()
     if (this->_occlusion_msk_img_rcvd)
     {
         this->_feats_detection_msk_mat = this->_feats_detection_msk_mat & _occlusion_msk_mat;
-    }else{
     }
-
 
     // Erode EROSION_SIZE_TRACKING pixel for the tracking mask
     cv::erode(this->_feats_detection_msk_mat, this->_feats_tracking_msk_mat, this->_erosion_element_tracking_mat);
@@ -680,6 +684,10 @@ void PointFeatureTracker::_DetectNewFeatures()
 
         // DETECTION /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         cv::goodFeaturesToTrack(this->_current_bw_img_ptr->image, new_features, num_new_features_to_detect, min_feat_quality, min_distance, this->_feats_detection_msk_mat);
+
+       // cv::imshow("a", this->_current_bw_img_ptr->image);
+       // cv::imshow("b", this->_feats_detection_msk_mat);
+       // cv::waitKey(-1);
 
         std::vector<bool> new_feats_status;
         new_feats_status.resize(num_new_features_to_detect, true);
