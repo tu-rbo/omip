@@ -231,6 +231,35 @@ void invert3x3MatrixEigen(const Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic,
 
 void invert3x3MatrixEigen2(const Eigen::Matrix3d& to_inv, Eigen::Matrix3d& inverse);
 
+typedef Eigen::Matrix<double, 6, 6> Matrix6d;
+
+/**
+ * @brief computeAdjoint Returns the adjoint matrix of the given pose. Necessary because the LGSM library represents first rotation
+ * and then translation while we represent first translation and then rotation
+ * @param pose_ec Pose (in exponential coordinates) to obtain the adjoint for
+ * @param adjoint Matrix containing the adjoint. 3 first rows are translation and 3 last rows are rotation
+ */
+void computeAdjoint(const Eigen::Twistd& pose_ec, Eigen::Matrix<double, 6, 6>& adjoint_out);
+
+/**
+ * @brief adjointXcovXadjointT Transforms a covariance from one reference frame to another
+ * @param pose_ec Pose (in exponential coordinates) where we want to have the covariance expressed
+ * @param cov Original covariance
+ * @param transformed_cov Transformed covariance
+ */
+void adjointXcovXadjointT(const Eigen::Twistd& pose_ec, const Eigen::Matrix<double, 6, 6>& cov, Eigen::Matrix<double, 6, 6>& transformed_cov_out);
+
+/**
+ * Same as the functions above but the pose is passed as a displacement
+ */
+void computeAdjoint(const Eigen::Displacementd pose_disp, Eigen::Matrix<double, 6, 6> &adjoint_out);
+void adjointXcovXadjointT(const Eigen::Displacementd &pose_disp, const Eigen::Matrix<double, 6, 6>& cov, Eigen::Matrix<double, 6, 6>& transformed_cov_out);
+
+void adjointXinvAdjointXcovXinvAdjointTXadjointT(const Eigen::Displacementd& pose_disp1,
+                                                       const Eigen::Displacementd& pose_disp2,
+                                                       const Eigen::Matrix<double, 6, 6>& cov,
+                                                       Eigen::Matrix<double, 6, 6>& transformed_cov_out);
+
 }
 
 #endif /* OMIP_UTILS_H_ */

@@ -98,14 +98,14 @@ void RBFilter::predictState(double time_interval_ns)
         getchar();
     }
 
-    // Estimate the new cov matrix depending on the time elapsed between the previous and the current measurement
+    // The system noise is proportional to the time elapsed between the previous and the current measurement
     Eigen::Matrix<double, 6, 6> sys_noise_COV = Eigen::Matrix<double, 6, 6>::Zero();
-    sys_noise_COV(0, 0) = this->_cov_sys_acc_tx;//* (std::pow((time_interval_ns/1e9),3) / 3.0);
-    sys_noise_COV(1, 1) = this->_cov_sys_acc_ty;//* (std::pow((time_interval_ns/1e9),3) / 3.0);
-    sys_noise_COV(2, 2) = this->_cov_sys_acc_tz;//* (std::pow((time_interval_ns/1e9),3) / 3.0);
-    sys_noise_COV(3, 3) = this->_cov_sys_acc_rx;//* (std::pow((time_interval_ns/1e9),3) / 3.0);
-    sys_noise_COV(4, 4) = this->_cov_sys_acc_ry;//* (std::pow((time_interval_ns/1e9),3) / 3.0);
-    sys_noise_COV(5, 5) = this->_cov_sys_acc_rz;//* (std::pow((time_interval_ns/1e9),3) / 3.0);
+    sys_noise_COV(0, 0) = this->_cov_sys_acc_tx*(time_interval_ns/1e9);
+    sys_noise_COV(1, 1) = this->_cov_sys_acc_ty*(time_interval_ns/1e9);
+    sys_noise_COV(2, 2) = this->_cov_sys_acc_tz*(time_interval_ns/1e9);
+    sys_noise_COV(3, 3) = this->_cov_sys_acc_rx*(time_interval_ns/1e9);
+    sys_noise_COV(4, 4) = this->_cov_sys_acc_ry*(time_interval_ns/1e9);
+    sys_noise_COV(5, 5) = this->_cov_sys_acc_rz*(time_interval_ns/1e9);
 
     // We update the pose with a non-linear rule:
     // The predicted pose is the belief pose pre-multiplied by the corresponding
@@ -119,21 +119,26 @@ void RBFilter::predictState(double time_interval_ns)
     // We also update the covariance based on Barfoot et al.
     Eigen::Matrix<double, 6, 6> delta_pose_covariance = (time_interval_ns/1e9)*_velocity_covariance;
 
+    // We compute the adjoint of the pose (careful, the LGSM lib assumes first rotation then translation, and we assume the opposite)
     Eigen::Twistd pose_ec;
     TransformMatrix2Twist(_pose, pose_ec);
-    Eigen::Matrix<double,6,6> adjoint = pose_ec.exp(1e-12).adjoint();
+    Eigen::Matrix<double, 6, 6> transformed_cov;
+    adjointXcovXadjointT(pose_ec, delta_pose_covariance, transformed_cov);
 
-    // pose_covariance_updated is 6x6
-    _predicted_pose_cov_vh = _pose_covariance + adjoint*delta_pose_covariance*adjoint.transpose();
+    // We update the predicted pose_covariance adding the uncertainty about the velocity
+    _predicted_pose_cov_vh = _pose_covariance +  delta_pose_covariance;
 
-    // Finally we add the system noise
+    // Finally we add the (constant) system noise
     _predicted_pose_cov_vh += sys_noise_COV;
 
-    // The additive noise we use in the filter based on braking hypothesis is larger
+    // The alternative forward model assumes that there was a break event (zero velocity) and therefore the pose remains constant
+    // This model covers for abrupt stopping events
     this->_predicted_pose_bh = _pose;
     this->_predicted_velocity_bh = Eigen::Twistd(0,0,0,0,0,0);
-    this->_predicted_pose_cov_bh = _pose_covariance + sys_noise_COV;
-    this->_predicted_velocity_cov_bh =  Eigen::Matrix<double, 6, 6>::Zero();
+    // The additive noise we use for the predicted covariance based on braking hypothesis is larger so that it is only used if it is really
+    // more likely (larger and better support from input data) than the velocity based
+    this->_predicted_pose_cov_bh = _pose_covariance +  delta_pose_covariance + 1.001*sys_noise_COV;
+    this->_predicted_velocity_cov_bh =  sys_noise_COV;
 }
 
 // This only predicts the location of the Features that are supporting the RBFilter
@@ -256,14 +261,12 @@ void RBFilter::correctState()
             R_inv_times_innovation(3 * feat_idx + 1) = feature_innovation.y()/(std::max(this->_min_cov_meas_y, feature_depth / this->_meas_depth_factor));
             R_inv_times_innovation(3 * feat_idx + 2) = feature_innovation.z()/(std::max(this->_min_cov_meas_z, feature_depth / this->_meas_depth_factor));
 
-            Eigen::Vector4d predicted_location_feat = _predicted_pose*location_at_birth_eig;
-
-            _D_T_p0_circle(0,4) = predicted_location_feat[2];
-            _D_T_p0_circle(0,5) = -predicted_location_feat[1];
-            _D_T_p0_circle(1,3) = -predicted_location_feat[2];
-            _D_T_p0_circle(1,5) = predicted_location_feat[0];
-            _D_T_p0_circle(2,3) = predicted_location_feat[1];
-            _D_T_p0_circle(2,4) = -predicted_location_feat[0];
+            _D_T_p0_circle(0,4) = predicted_location[2];
+            _D_T_p0_circle(0,5) = -predicted_location[1];
+            _D_T_p0_circle(1,3) = -predicted_location[2];
+            _D_T_p0_circle(1,5) = predicted_location[0];
+            _D_T_p0_circle(2,3) = predicted_location[1];
+            _D_T_p0_circle(2,4) = -predicted_location[0];
 
             G_t.block<6,3>(0, 3*feat_idx) = _D_T_p0_circle.transpose();
 

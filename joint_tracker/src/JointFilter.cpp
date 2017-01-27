@@ -63,9 +63,11 @@ void JointFilter::setInitialMeasurement(const joint_measurement_t &initial_measu
 
     //See: http://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=6727494 (48,55)
     //See http://ethaneade.com/lie.pdf 8.3
-    this->_srb_initial_pose_cov_in_rrbf =
-            T_rrbf_sf_t0.adjoint()*_rrb_pose_cov_in_sf*T_rrbf_sf_t0.adjoint().transpose()
-            + T_rrbf_sf_t0.adjoint()*_srb_pose_cov_in_sf*T_rrbf_sf_t0.adjoint().transpose();
+    Eigen::Matrix<double, 6, 6> rrb_pose_cov_in_rrbf;
+    adjointXcovXadjointT(T_rrbf_sf_t0, _rrb_pose_cov_in_sf, rrb_pose_cov_in_rrbf);
+    Eigen::Matrix<double, 6, 6> srb_pose_cov_in_rrbf;
+    adjointXcovXadjointT(T_rrbf_sf_t0, _srb_pose_cov_in_sf, srb_pose_cov_in_rrbf);
+    this->_srb_initial_pose_cov_in_rrbf = rrb_pose_cov_in_rrbf + srb_pose_cov_in_rrbf;
 
     // Estimate the current pose of the second RB frame relative to the current reference RB frame in current reference RB frame coordinates
     // TwistCoord({srbf}|SRB,{rrbf}|RRB,[rrbf])(t)
@@ -229,9 +231,11 @@ void JointFilter::setMeasurement(joint_measurement_t acquired_measurement, const
 
     //See: http://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=6727494 (48,55)
     //See http://ethaneade.com/lie.pdf 8.3
-    this->_srb_current_pose_cov_in_rrbf =
-            T_rrbf_sf.adjoint()*_rrb_pose_cov_in_sf*T_rrbf_sf.adjoint().transpose()
-            + T_rrbf_sf.adjoint()*_srb_pose_cov_in_sf*T_rrbf_sf.adjoint().transpose();
+    Eigen::Matrix<double, 6, 6> rrb_pose_cov_in_rrbf;
+    adjointXcovXadjointT(T_rrbf_sf, _rrb_pose_cov_in_sf, rrb_pose_cov_in_rrbf);
+    Eigen::Matrix<double, 6, 6> srb_pose_cov_in_rrbf;
+    adjointXcovXadjointT(T_rrbf_sf, _srb_pose_cov_in_sf, srb_pose_cov_in_rrbf);
+    this->_srb_current_pose_cov_in_rrbf = rrb_pose_cov_in_rrbf + srb_pose_cov_in_rrbf;
 
     Eigen::Displacementd T_rrbf_srbf_t0 = this->_srb_initial_pose_in_rrbf.exp(1.0e-20);
     Eigen::Displacementd delta_displ = T_rrbf_srbf * (T_rrbf_srbf_t0.inverse());
@@ -260,9 +264,9 @@ void JointFilter::setMeasurement(joint_measurement_t acquired_measurement, const
 
     //See: http://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=6727494 (48,55)
     //See http://ethaneade.com/lie.pdf 8.3
-    this->_current_delta_pose_cov_in_rrbf =
-            _srb_current_pose_cov_in_rrbf
-            + T_rrbf_srbf.adjoint()*T_rrbf_srbf_t0.inverse().adjoint()*_srb_initial_pose_cov_in_rrbf*T_rrbf_srbf_t0.inverse().adjoint().transpose()*T_rrbf_srbf.adjoint().transpose();
+    Eigen::Matrix<double, 6, 6> transformed_cov;
+    adjointXinvAdjointXcovXinvAdjointTXadjointT(T_rrbf_srbf, T_rrbf_srbf_t0, _srb_initial_pose_cov_in_rrbf, transformed_cov);
+    this->_current_delta_pose_cov_in_rrbf = _srb_current_pose_cov_in_rrbf + transformed_cov;
 
     // Extract centroid of the reference RB in sensor frame
     if(_rrb_id == 0)

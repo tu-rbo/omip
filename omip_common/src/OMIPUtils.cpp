@@ -427,3 +427,56 @@ void omip::invert3x3MatrixEigen2(const Eigen::Matrix3d& to_inv,
     inverse(1,2) = -(to_inv(0,0)*to_inv(2,1)-to_inv(2,0)*to_inv(0,1))*invdet;
     inverse(2,2) =  (to_inv(0,0)*to_inv(1,1)-to_inv(1,0)*to_inv(0,1))*invdet;
 }
+
+void omip::computeAdjoint(const Eigen::Twistd &pose_ec, Eigen::Matrix<double, 6, 6> &adjoint_out)
+{
+    omip::computeAdjoint(pose_ec.exp(1e-12), adjoint_out);
+}
+
+void omip::adjointXcovXadjointT(const Eigen::Twistd& pose_ec, const Eigen::Matrix<double, 6, 6>& cov, Eigen::Matrix<double, 6, 6>& transformed_cov_out)
+{
+    Eigen::Matrix<double, 6, 6> adjoint;
+    omip::computeAdjoint(pose_ec, adjoint);
+
+    transformed_cov_out = adjoint*cov*adjoint.transpose();
+}
+
+//LGSM adjoint:
+// (   R    0 )
+// ((t x R) R )
+//Desired adjoint:
+// ( R (t x R))
+// ( 0    R   )
+void omip::computeAdjoint(Eigen::Displacementd pose_disp, Eigen::Matrix<double, 6, 6> &adjoint_out)
+{
+    Eigen::Matrix<double, 6, 6> adjoint_rot_trans = pose_disp.adjoint();
+
+    adjoint_out = adjoint_rot_trans;
+    adjoint_out.block<3,3>(0,3) = adjoint_rot_trans.block<3,3>(3,0);
+    adjoint_out.block<3,3>(3,0) = adjoint_rot_trans.block<3,3>(0,3);
+}
+
+void omip::adjointXcovXadjointT(const Eigen::Displacementd& pose_disp,
+                                const Eigen::Matrix<double, 6, 6>& cov,
+                                Eigen::Matrix<double, 6, 6>& transformed_cov_out)
+{
+    Eigen::Matrix<double, 6, 6> adjoint;
+    omip::computeAdjoint(pose_disp, adjoint);
+
+    transformed_cov_out = adjoint*cov*adjoint.transpose();
+}
+
+void omip::adjointXinvAdjointXcovXinvAdjointTXadjointT(const Eigen::Displacementd& pose_disp1,
+                                                       const Eigen::Displacementd& pose_disp2,
+                                                       const Eigen::Matrix<double, 6, 6>& cov,
+                                                       Eigen::Matrix<double, 6, 6>& transformed_cov_out)
+{
+    //T_rrbf_srbf.adjoint()*T_rrbf_srbf_t0.inverse().adjoint()*_srb_initial_pose_cov_in_rrbf*T_rrbf_srbf_t0.inverse().adjoint().transpose()*T_rrbf_srbf.adjoint().transpose()
+    Eigen::Matrix<double, 6, 6> adjoint1;
+    omip::computeAdjoint(pose_disp1, adjoint1);
+
+    Eigen::Matrix<double, 6, 6> adjoint2;
+    omip::computeAdjoint(pose_disp2.inverse(), adjoint2);
+
+    transformed_cov_out = adjoint1*adjoint2*cov*adjoint2.transpose()*adjoint1.transpose();
+}

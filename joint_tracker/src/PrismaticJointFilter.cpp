@@ -254,7 +254,9 @@ void PrismaticJointFilter::predictState(double time_interval_ns)
 
 geometry_msgs::TwistWithCovariance PrismaticJointFilter::getPredictedSRBDeltaPoseWithCovInSensorFrame()
 {
-    Eigen::Twistd predicted_delta_pose_in_sf = this->_rrb_current_pose_in_sf.exp(1e-12).adjoint()*this->_predicted_delta_pose_in_rrbf;
+    Eigen::Matrix<double, 6, 6> adjoint;
+    computeAdjoint(this->_rrb_current_pose_in_sf, adjoint);
+    Eigen::Twistd predicted_delta_pose_in_sf = adjoint*this->_predicted_delta_pose_in_rrbf;
 
     geometry_msgs::TwistWithCovariance hypothesis;
 
@@ -282,7 +284,9 @@ geometry_msgs::TwistWithCovariance PrismaticJointFilter::getPredictedSRBDeltaPos
 
 geometry_msgs::TwistWithCovariance PrismaticJointFilter::getPredictedSRBVelocityWithCovInSensorFrame()
 {
-    Eigen::Twistd predicted_delta_pose_in_sf = this->_rrb_current_pose_in_sf.exp(1e-12).adjoint()*(this->_predicted_delta_pose_in_rrbf/(_loop_period_ns/1e9));
+    Eigen::Matrix<double, 6, 6> adjoint;
+    computeAdjoint(this->_rrb_current_pose_in_sf, adjoint);
+    Eigen::Twistd predicted_delta_pose_in_sf = adjoint*(this->_predicted_delta_pose_in_rrbf/(_loop_period_ns/1e9));
 
     geometry_msgs::TwistWithCovariance hypothesis;
 
@@ -532,8 +536,9 @@ geometry_msgs::TwistWithCovariance PrismaticJointFilter::getPredictedSRBPoseWith
     }
     // I need the covariance of the absolute pose of the second RB, so I add the cov of the relative pose to the
     // cov of the reference pose. I need to "move" the second covariance to align it to the reference frame (see Barfoot)
-    Eigen::Matrix<double,6,6> adjoint_eigen = this->_rrb_current_pose_in_sf.exp(1e-12).adjoint();
-    Eigen::Matrix<double,6,6> new_pose_covariance = this->_rrb_pose_cov_in_sf + adjoint_eigen*measurement_cov_eigen*adjoint_eigen.transpose();
+    Eigen::Matrix<double,6,6> tranformed_cov;
+    adjointXcovXadjointT(_rrb_current_pose_in_sf, measurement_cov_eigen, tranformed_cov);
+    Eigen::Matrix<double,6,6> new_pose_covariance = this->_rrb_pose_cov_in_sf + tranformed_cov;
     for (unsigned int i = 0; i < 6; i++)
     {
         for (unsigned int j = 0; j < 6; j++)
