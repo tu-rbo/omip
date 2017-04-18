@@ -41,6 +41,7 @@ while test $# -gt 0; do
       echo -e "\t\t2 -> Launch Online Multimodal Interactive Perception and keep the terminals open"
       echo -e "\t\t3 -> Launch Online Multimodal Interactive Perception with shape reconstruction"
       echo -e "\t\t4 -> Launch Online Multimodal Interactive Perception with shape reconstruction and shape tracker"
+      echo -e "\t\t5 -> Launch Online Multimodal Interactive Perception based only on proprioception (no vision)"
       echo -e "\t--rgbd= -> Launch openni node for RGB-D sensor (default ${RGBDSENSOR}):"
       echo -e "\t\t0 -> Do not launch the openni node"
       echo -e "\t\t1 -> Do not launch the openni node but launch the static transformations"
@@ -155,26 +156,37 @@ case "$OMIP" in
   ;;
   1)
   echo -e "${blue}Launch Online Multimodal Interactive Perception${NC}"
+  rosparam set /omip/only_proprioception false &
   roslaunch omip_launch omip.launch &
   terminator --layout omip &
   WAITKEY=1
   ;;
   2)
   echo -e "${blue}Launch Online Multimodal Interactive Perception and keep the terminals open${NC}"
+  rosparam set /omip/only_proprioception false &
   roslaunch omip_launch omip.launch &
   terminator --layout omip_hold &
   WAITKEY=1
   ;;
   3)
   echo -e "${blue}Launch Online Multimodal Interactive Perception with Shape Reconstruction${NC}"
+  rosparam set /omip/only_proprioception false &
   roslaunch omip_launch omip.launch &
   terminator --layout omip_sr &
   WAITKEY=1
   ;;
   4)
   echo -e "${blue}Launch Online Multimodal Interactive Perception with Shape Reconstruction and Shape Tracking${NC}"
+  rosparam set /omip/only_proprioception false &
   roslaunch omip_launch omip.launch &
   terminator --layout omip_sr_st &
+  WAITKEY=1
+  ;;
+  5)
+  echo -e "${blue}Launch Online Multimodal Interactive Perception based only on Proprioception${NC}"
+  rosparam set /omip/only_proprioception true &
+  roslaunch omip_launch omip.launch &
+  terminator --layout omip_pp &  
   WAITKEY=1
   ;;
   *)

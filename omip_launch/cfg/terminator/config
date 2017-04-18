@@ -54,13 +54,13 @@
       order = 0
       parent = child3
     [[[terminal3]]]
-      profile = default
+      profile = hold
       command = roslaunch shape_reconstruction shape_reconstruction.launch
       type = Terminal
       order = 0
       parent = child4
     [[[terminal4]]]
-      profile = default
+      profile = hold
       command = roslaunch shape_tracker shape_tracker.launch
       type = Terminal
       order = 1
@@ -153,6 +153,30 @@
       type = Terminal
       order = 1
       parent = child2
+  [[omip_pp]]
+    [[[child0]]]
+      position = 57:21
+      type = Window
+      order = 0
+      parent = ""
+      size = 1863, 500
+    [[[child1]]]
+      position = 124
+      type = VPaned
+      order = 0
+      parent = child0
+    [[[terminal0]]]
+      profile = hold
+      command = roslaunch rb_tracker rbt.launch
+      type = Terminal
+      order = 0
+      parent = child1
+    [[[terminal1]]]
+      profile = hold
+      command = roslaunch joint_tracker jt.launch
+      type = Terminal
+      order = 1
+      parent = child1
   [[omip]]
     [[[child0]]]
       position = 57:21
