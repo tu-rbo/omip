@@ -26,9 +26,8 @@ This code has been tested with ROS Indigo on Ubuntu 14.04 LTS. For a less tested
 ```cp ~/.config/terminator/config ~/.config/terminator/config.bak```<br/>
 ```cp omip/omip_launch/cfg/terminator/config ~/.config/terminator/```<br/>
 Create the folder ~/.config/terminator before copying the file if it does not exist.
- - ROS packages OpenCV, PCL, openni, openni2, cmake-modules, BFL:<br/>
-```sudo apt-get install ros-indigo-pcl-ros ros-indigo-openni-launch ros-indigo-openni-camera
-ros-indigo-openni2-launch ros-indigo-openni2-camera ros-indigo-cmake-modules```<br/>
+ - ROS packages OpenCV, PCL, openni, openni2, cmake-modules:<br/>
+```sudo apt-get install ros-indigo-pcl-ros ros-indigo-openni-launch ros-indigo-openni-camera ros-indigo-openni2-launch ros-indigo-openni2-camera ros-indigo-cmake-modules```<br/>
  - Bayesian Filter Library by TU Leuven:<br/>
 ```sudo apt-get install ros-indigo-bfl```<br/>
 then copy omip/thirdparty/bflConfig.cmake into your_ros_install_dir/share/bfl with:<br/>
