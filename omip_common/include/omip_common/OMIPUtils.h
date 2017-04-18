@@ -260,6 +260,12 @@ void adjointXinvAdjointXcovXinvAdjointTXadjointT(const Eigen::Displacementd& pos
                                                        const Eigen::Matrix<double, 6, 6>& cov,
                                                        Eigen::Matrix<double, 6, 6>& transformed_cov_out);
 
+void findIntersectionOfEllipsoidAndPlane(const Eigen::Matrix3d& ellipsoid,
+                                               const Eigen::Vector3d& normal_plane,
+                                               double& r1,
+                                               double& r2,
+                                               Eigen::Matrix3d& full_rotation);
+
 }
 
 #endif /* OMIP_UTILS_H_ */

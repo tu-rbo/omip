@@ -47,6 +47,7 @@ FILE(GLOB source_files
         include/omip_common/OMIPTypeDefs.h
         include/omip_common/RecursiveEstimatorFilterInterface.h
         include/omip_common/RecursiveEstimatorNodeInterface.h
+        include/omip_common/RecursiveEstimatorCentralizedBeliefIntegrator.h
 	src/Feature.cpp
         src/FeaturesDataBase.cpp
         src/OMIPUtils.cpp)

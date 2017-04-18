@@ -9,6 +9,9 @@
 #include <iostream>
 #include <fstream>
 
+#include <Eigen/Eigenvalues>
+#include <boost/math/distributions/chi_squared.hpp>
+
 using namespace omip;
 
 void omip::EigenAffine2TranslationAndEulerAngles(const Eigen::Affine3d& t,
@@ -299,7 +302,7 @@ Eigen::Twistd omip::unwrapTwist(Eigen::Twistd& current_twist, Eigen::Displacemen
 
     // The difference should be around 2PI (a little bit less)
     if(Eigen::Vector3d(current_twist.rx()-previous_twist.rx(), current_twist.ry()-previous_twist.ry(), current_twist.rz()-previous_twist.rz()).norm() > M_PI
-            || current_angular_direction.dot(previous_angular_direction) < -0.8)
+            || (current_angular_component.norm() > 0.5 && previous_angular_component.norm() > 0.5 && current_angular_direction.dot(previous_angular_direction) < -0.8))
     {
 
         Eigen::Vector3d new_angular_component;
@@ -479,4 +482,92 @@ void omip::adjointXinvAdjointXcovXinvAdjointTXadjointT(const Eigen::Displacement
     omip::computeAdjoint(pose_disp2.inverse(), adjoint2);
 
     transformed_cov_out = adjoint1*adjoint2*cov*adjoint2.transpose()*adjoint1.transpose();
+}
+
+void omip::findIntersectionOfEllipsoidAndPlane(const Eigen::Matrix3d& ellipsoid,
+                                               const Eigen::Vector3d& normal_plane,
+                                               double& r1,
+                                               double& r2,
+                                               Eigen::Matrix3d& full_rotation)
+{    
+    double confidence_value = 0.5;
+    boost::math::chi_squared chi_sq_dist(2);
+    double critical_value = boost::math::quantile(chi_sq_dist, confidence_value);
+
+    Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eigensolver(ellipsoid);
+
+    double A1 = 2*eigensolver.eigenvalues()[2]*std::sqrt(critical_value);
+    double a1 = 1.0/pow(A1, 2);
+    double A2 = 2*eigensolver.eigenvalues()[1]*std::sqrt(critical_value);
+    double a2 = 1.0/pow(A2, 2);
+    double A3 = 2*eigensolver.eigenvalues()[0]*std::sqrt(critical_value);
+    double a3 = 1.0/pow(A3, 2);
+
+    if(A1 == A2 && A2 == A3)
+    {
+        r1 = A1;
+        r2 = A1;
+        Eigen::Vector3d major_axis_cart = normal_plane.cross(Eigen::Vector3d::UnitX());
+        Eigen::Vector3d minor_axis_cart = major_axis_cart.cross(normal_plane);
+        full_rotation << major_axis_cart.x(), minor_axis_cart.x(), normal_plane.x(),
+                major_axis_cart.y(), minor_axis_cart.y(), normal_plane.y(),
+                major_axis_cart.z(), minor_axis_cart.z(), normal_plane.z();
+    }else{
+
+        Eigen::Vector3d x1_axis = eigensolver.eigenvectors().col(2);
+        Eigen::Vector3d x2_axis = eigensolver.eigenvectors().col(1);
+        Eigen::Vector3d x3_axis = eigensolver.eigenvectors().col(0);
+
+        Eigen::Matrix3d R;
+        R << x1_axis[0] , x2_axis[0] , x3_axis[0] ,
+                x1_axis[1] , x2_axis[1] , x3_axis[1] ,
+                x1_axis[2] , x2_axis[2] , x3_axis[2] ;
+
+        Eigen::Vector3d beta = normal_plane.transpose()*R;
+
+        double coeff_a = (a2*a3*pow(beta[0],2) + a1*a3*pow(beta[1],2)) + a1*a2*pow(beta[2],2);
+        double coeff_b =  -((a2+a3)*pow(beta[0],2) + (a1+a3)*pow(beta[1],2) + (a1+a2)*pow(beta[2],2));
+
+        double ra = (-coeff_b + sqrt(pow(coeff_b,2) -4*coeff_a))/(2.0*coeff_a);
+        double rb = (-coeff_b - sqrt(pow(coeff_b,2) -4*coeff_a))/(2.0*coeff_a);
+
+        r1 = ra > rb ? ra : rb;
+        r1 = sqrt(r1);
+        r2 = ra < rb ? ra : rb;
+        r2 = sqrt(r2);
+
+        double k11 = beta[0]/(a1*pow(r1,2)-1);
+        double k12 = beta[1]/(a2*pow(r1,2)-1);
+        double k13 = beta[2]/(a3*pow(r1,2)-1);
+        double sumk1 = k11*k11+k12*k12+k13*k13;
+
+        double k21 = beta[0]/(a1*pow(r2,2)-1);
+        double k22 = beta[1]/(a2*pow(r2,2)-1);
+        double k23 = beta[2]/(a3*pow(r2,2)-1);
+        double sumk2 = k21*k21+k22*k22+k23*k23;
+
+        Eigen::Vector3d major_axis = 1/sqrt(sumk1)*Eigen::Vector3d(k11, k12, k13);
+
+        Eigen::Vector3d minor_axis = 1/sqrt(sumk2)*Eigen::Vector3d(k21, k22, k23);
+
+        Eigen::Vector3d major_axis_cart = major_axis.transpose()*(R.transpose());
+        Eigen::Vector3d minor_axis_cart = minor_axis.transpose()*(R.transpose());
+
+        //The 3 axis are: z -> _joint_orientation
+        //x-> major_axis_cart
+        //y-> minor_axis_cart
+        //Create a rotation matrix with them and query the quaternion
+
+        //Impose that the xyz axis are correctly aligned
+        // x cross y dot z should be 1
+        // if it is -1, we flip y
+        if(major_axis_cart.cross(minor_axis_cart).dot(normal_plane) < -0.9)
+        {
+            minor_axis_cart = -minor_axis_cart;
+        }
+
+        full_rotation << major_axis_cart.x(), minor_axis_cart.x(), normal_plane.x(),
+                major_axis_cart.y(), minor_axis_cart.y(), normal_plane.y(),
+                major_axis_cart.z(), minor_axis_cart.z(), normal_plane.z();
+    }
 }
