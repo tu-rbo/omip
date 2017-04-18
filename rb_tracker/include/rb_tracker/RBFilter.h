@@ -66,6 +66,8 @@ Projectname = {Interactive Perception}
 #include <unsupported/Eigen/NonLinearOptimization>
 #include <unsupported/Eigen/NumericalDiff>
 
+#include "omip_common/OMIPUtils.h"
+
 
 /**
  * NOTE:
@@ -171,6 +173,8 @@ public:
    */
     virtual void correctState();
 
+    virtual void correctState(const RB_id_t& rrb_id, const Eigen::Matrix4d& other_rb_pose, const Eigen::Matrix<double, 6, 6>& other_rb_pose_cov);
+
     virtual void integrateShapeBasedPose(const geometry_msgs::TwistWithCovariance twist_refinement, double pose_time_elapsed_ns);
 
     /**
@@ -246,12 +250,32 @@ public:
    */
     virtual Eigen::Matrix4d getPose() const;
 
+    virtual void setPose(const Eigen::Matrix4d& new_pose)
+    {
+        _pose = new_pose;
+
+        _trajectory.pop_back();
+
+        Eigen::Matrix4d delta_pose = _pose*_trajectory.at(_trajectory.size()-1).inverse();
+
+        Eigen::Twistd delta_pose_ec;
+        TransformMatrix2Twist(delta_pose, delta_pose_ec);
+        this->_velocity = delta_pose_ec/(_last_time_interval_ns/1e9);
+
+        _trajectory.push_back(_pose);
+    }
+
     /**
    * Get the covariance of the current believed pose
    * @param hypothesis - hypothesis from which we want to get the covariance of the believed pose: velocity-update or brake-event update
    * @return - Eigen matrix containing the covariance of the current believed pose
    */
     virtual Eigen::Matrix<double, 6, 6> getPoseCovariance() const;
+
+    virtual void setPoseCovariance(const Eigen::Matrix<double, 6, 6>& new_pose_covariance)
+    {
+        _pose_covariance = new_pose_covariance;
+    }
 
     /**
    * Get the current believed velocity in exponential coordinates
@@ -336,26 +360,6 @@ public:
         this->_prior_cov_vel = v;
     }
 
-    virtual void setMinCovarianceMeasurementX(double v)
-    {
-        this->_min_cov_meas_x = v;
-    }
-
-    virtual void setMinCovarianceMeasurementY(double v)
-    {
-        this->_min_cov_meas_y = v;
-    }
-
-    virtual void setMinCovarianceMeasurementZ(double v)
-    {
-        this->_min_cov_meas_z = v;
-    }
-
-    virtual void setMeasurementDepthFactor(double v)
-    {
-        this->_meas_depth_factor = v;
-    }
-
     virtual void setCovarianceSystemAccelerationTx(double v)
     {
         this->_cov_sys_acc_tx = v;
@@ -406,7 +410,7 @@ public:
         return _initial_location_of_centroid;
     }
 
-    virtual void doNotUsePredictionFromHigherLevel()
+    virtual void clearPredictionFromHigherLevel()
     {
         _use_predicted_state_from_kh = false;
     }
@@ -429,6 +433,11 @@ public:
     void resetFeaturesPredicted()
     {
         _features_predicted->points.clear();
+    }
+
+    void setPointerFeatCovsMap(std::map<uint32_t, Eigen::Matrix3d>* feat_covs_ptr)
+    {
+        _feat_covs_ptr = feat_covs_ptr;
     }
 
 protected:
@@ -454,10 +463,6 @@ protected:
 
     double _prior_cov_pose;
     double _prior_cov_vel;
-    double _min_cov_meas_x;
-    double _min_cov_meas_y;
-    double _min_cov_meas_z;
-    double _meas_depth_factor;
     double _cov_sys_acc_tx;
     double _cov_sys_acc_ty;
     double _cov_sys_acc_tz;
@@ -544,6 +549,10 @@ protected:
     int _num_tracked_feats;
     int _min_num_supporting_feats_to_correct;
 
+    std::map<RB_id_t, Eigen::Matrix4d> _predicted_change_in_relative_pose_in_rrbf;
+    std::map<RB_id_t, Eigen::Matrix<double, 6, 6> > _predicted_change_in_relative_pose_cov_in_rrbf;
+
+    std::map<uint32_t, Eigen::Matrix3d>* _feat_covs_ptr;
 };
 
 }

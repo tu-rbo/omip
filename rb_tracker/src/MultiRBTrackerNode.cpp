@@ -42,9 +42,12 @@ MultiRBTrackerNode::MultiRBTrackerNode() :
     _publishing_clustered_pc(true),
     _publishing_tf(true),
     _printing_rb_poses(true),
-    _shape_tracker_received(false)
+    _shape_tracker_received(false),
+    _robot_interaction(false)
 {
     this->_namespace = std::string("rb_tracker");
+
+    this->getROSParameter<bool>(std::string("/omip/only_proprioception"), _only_proprioception);
 
     this->ReadParameters();
 
@@ -58,16 +61,14 @@ MultiRBTrackerNode::MultiRBTrackerNode() :
     this->_measurement_subscriber= this->_measurements_node_handle.subscribe("/feature_tracker/state", 100, &MultiRBTrackerNode::measurementCallback, this);
     // Setup the subscriber for state predictions from the higher RE level
     this->_state_prediction_subscriber = this->_state_prediction_node_handles[0].subscribe(this->_namespace + "/predicted_measurement", 10,
-                                                                                              &MultiRBTrackerNode::statePredictionCallback, this);
+                                                                                           &MultiRBTrackerNode::statePredictionCallback, this);
 
     this->_meas_from_st_subscriber = this->_state_prediction_node_handles[0].subscribe("/shape_tracker/state", 10,
-                                                                                          &MultiRBTrackerNode::MeasurementFromShapeTrackerCallback, this);
+                                                                                       &MultiRBTrackerNode::MeasurementFromShapeTrackerCallback, this);
 
     // Setup the publisher for the predicted measurements. They are used as state predictions by the lower RE level
     this->_measurement_prediction_publisher = this->_measurements_node_handle.advertise<ft_state_ros_t>("/feature_tracker/predicted_measurement", 1);
     this->_state_publisher = this->_measurements_node_handle.advertise<omip_msgs::RigidBodyPosesAndVelsMsg>(this->_namespace + "/state", 1);
-
-
     this->_state_publisher2 = this->_measurements_node_handle.advertise<omip_msgs::RigidBodyPosesAndVelsMsg>(this->_namespace + "/state_after_feat_correction", 1);
 
     // Additional published topics
@@ -76,7 +77,6 @@ MultiRBTrackerNode::MultiRBTrackerNode() :
 
     this->_predictedfeats_pc_publisher = this->_measurements_node_handle.advertise<sensor_msgs::PointCloud2>(this->_namespace + "/predicted_feats", 100);
     this->_atbirthfeats_pc_publisher = this->_measurements_node_handle.advertise<sensor_msgs::PointCloud2>(this->_namespace + "/atbirth_feats", 100);
-
 
     // Initial constraint in the motion of the camera (initially constrained to no motion)
     int max_num_rb = -1;
@@ -91,14 +91,6 @@ MultiRBTrackerNode::MultiRBTrackerNode() :
     this->getROSParameter<int>(this->_namespace + std::string("/static_environment_type"), static_environment_tracker_type_int);
     this->_static_environment_tracker_type = (static_environment_tracker_t)static_environment_tracker_type_int;
 
-    double meas_depth_factor;
-    this->getROSParameter<double>(this->_namespace + std::string("/cov_meas_depth_factor"), meas_depth_factor);
-    double min_cov_meas_x;
-    this->getROSParameter<double>(this->_namespace + std::string("/min_cov_meas_x"), min_cov_meas_x);
-    double min_cov_meas_y;
-    this->getROSParameter<double>(this->_namespace + std::string("/min_cov_meas_y"), min_cov_meas_y);
-    double min_cov_meas_z;
-    this->getROSParameter<double>(this->_namespace + std::string("/min_cov_meas_z"), min_cov_meas_z);
     double prior_cov_pose;
     this->getROSParameter<double>(this->_namespace + std::string("/prior_cov_pose"), prior_cov_pose);
     double prior_cov_vel;
@@ -131,13 +123,19 @@ MultiRBTrackerNode::MultiRBTrackerNode() :
     int min_num_supporting_feats_to_correct;
     this->getROSParameter<int>(this->_namespace + std::string("/min_num_supporting_feats_to_correct"), min_num_supporting_feats_to_correct);
 
+    this->getROSParameter<bool>(std::string("/omip/robot_interaction"), _robot_interaction);
+    double max_feat_error_irb;
+    this->getROSParameter<double>(this->_namespace + std::string("/max_feat_error_irb"), max_feat_error_irb);
+    double max_feat_error_ee;
+    this->getROSParameter<double>(this->_namespace + std::string("/max_feat_error_ee"), max_feat_error_ee);
+    double max_distance_ee;
+    this->getROSParameter<double>(this->_namespace + std::string("/max_distance_ee"), max_distance_ee);
+    double max_distance_irb;
+    this->getROSParameter<double>(this->_namespace + std::string("/max_distance_irb"), max_distance_irb);
+
     ROS_INFO_STREAM_NAMED( "MultiRBTrackerNode.ReadParameters",
                            "MultiRBTrackerNode Parameters: " <<
                            "\n\tmax_num_rb: " << max_num_rb <<
-                           "\n\tmeas_depth_factor: " << meas_depth_factor <<
-                           "\n\tmin_cov_meas_x: " << min_cov_meas_x <<
-                           "\n\tmin_cov_meas_y: " << min_cov_meas_y <<
-                           "\n\tmin_cov_meas_z: " << min_cov_meas_z <<
                            "\n\tprior_cov_pose: " << prior_cov_pose <<
                            "\n\tprior_cov_vel: " << prior_cov_vel <<
                            "\n\tcov_sys_acc_tx: " << cov_sys_acc_tx <<
@@ -152,7 +150,13 @@ MultiRBTrackerNode::MultiRBTrackerNode() :
                            "\n\tmin_amount_translation_for_new_rb: " << min_amount_translation_for_new_rb <<
                            "\n\tmin_amount_rotation_for_new_rb: " << min_amount_rotation_for_new_rb <<
                            "\n\tmin_num_supporting_feats_to_correct: " << min_num_supporting_feats_to_correct <<
-                           "\n\tcam_motion_constraint: " << initial_cam_motion_constraint);
+                           "\n\tcam_motion_constraint: " << initial_cam_motion_constraint <<
+                           "\n\trobot_interaction: " << _robot_interaction <<
+                           "\n\tonly_proprioception: " << _only_proprioception <<
+                           "\n\tmax_feat_error_irb: " << max_feat_error_irb <<
+                           "\n\tmax_feat_error_ee: " << max_feat_error_ee <<
+                           "\n\tmax_distance_ee: " << max_distance_ee <<
+                           "\n\tmax_distance_irb: " << max_distance_irb );
 
     // Create the RE filter
     this->_re_filter = new MultiRBTracker(max_num_rb, this->_loop_period_ns,
@@ -168,10 +172,6 @@ MultiRBTrackerNode::MultiRBTrackerNode() :
                                           this->_static_environment_tracker_type
                                           );
 
-    this->_re_filter->setMeasurementDepthFactor(meas_depth_factor);
-    this->_re_filter->setMinCovarianceMeasurementX(min_cov_meas_x);
-    this->_re_filter->setMinCovarianceMeasurementY(min_cov_meas_y);
-    this->_re_filter->setMinCovarianceMeasurementZ(min_cov_meas_z);
     this->_re_filter->setPriorCovariancePose(prior_cov_pose);
     this->_re_filter->setPriorCovarianceVelocity(prior_cov_vel);
     this->_re_filter->setCovarianceSystemAccelerationTx(cov_sys_acc_tx);
@@ -187,8 +187,27 @@ MultiRBTrackerNode::MultiRBTrackerNode() :
     this->_re_filter->setMinAmountTranslationForNewRB(min_amount_translation_for_new_rb);
     this->_re_filter->setMinAmountRotationForNewRB(min_amount_rotation_for_new_rb);
     this->_re_filter->setMinNumberOfSupportingFeaturesToCorrectPredictedState(min_num_supporting_feats_to_correct);
+    this->_re_filter->setRobotInteraction(_robot_interaction);
 
     this->_re_filter->Init();
+
+    if(_robot_interaction)
+    {
+        this->_re_filter->setInteractedRigidBodyMaxFeatureError(max_feat_error_irb);
+        this->_re_filter->setEndEffectorEstimationThreshold(max_feat_error_ee);
+        this->_re_filter->setInteractedRigidBodyMaxDistanceFeaturesToBody(max_distance_irb);
+        this->_re_filter->setEndEffectorMaxDistanceFeaturesToBody(max_distance_ee);
+
+        double max_feat_error_ee;
+        this->getROSParameter<double>(this->_namespace + std::string("/max_feat_error_ee"), max_feat_error_ee);
+
+        // If we only have proprioception as source of information we create a timed callback that queries the proprioception measurement and steps the loop
+        if(_only_proprioception)
+        {
+            _only_pp_timer = this->_measurements_node_handle.createTimer(ros::Duration((double)_processing_factor/this->_sensor_fps),
+                                                                         &MultiRBTrackerNode::measurementCallbackOnlyPP, this);
+        }
+    }
 }
 
 MultiRBTrackerNode::~MultiRBTrackerNode()
@@ -228,7 +247,12 @@ void MultiRBTrackerNode::ReadParameters()
     this->getROSParameter<int>(std::string("/omip/processing_factor"), this->_processing_factor);
     this->_loop_period_ns = 1e9/(this->_sensor_fps/(double)this->_processing_factor);
 
-    this->getROSParameter<int>(std::string("/feature_tracker/number_features"), this->_num_tracked_feats);
+    if(!_only_proprioception)
+    {
+        this->getROSParameter<int>(std::string("/feature_tracker/number_features"), this->_num_tracked_feats);
+    }else{
+        _num_tracked_feats = 1;
+    }
 
 
     ROS_INFO_STREAM_NAMED( "MultiRBTrackerNode.ReadParameters",
@@ -251,17 +275,87 @@ void MultiRBTrackerNode::MeasurementFromShapeTrackerCallback(const boost::shared
     this->_re_filter->processMeasurementFromShapeTracker(this->_shape_tracker_meas);
 
 
-//    ROS_WARN_STREAM( "Current time minus refinement time: " << (this->_current_measurement_time - shape_tracker_states->header.stamp).toSec() );
-//    //Check if the result includes a valid refinement and updates
-//    if((this->_current_measurement_time - shape_tracker_states->header.stamp).toSec() < MAX_DELAY_BETWEEN_FT_AND_ST)
-//    {
-//        ROS_WARN_STREAM("Received measurement from shape tracker");
-//        this->_shape_tracker_meas = omip_msgs::ShapeTrackerStates(*shape_tracker_states);
-//        this->_shape_tracker_received = true;
-//    }else{
-//        ROS_ERROR_STREAM("Received measurement from shape tracker but too late. Time of the refinement: "
-//                         << shape_tracker_states->header.stamp <<  " Current time: " << this->_current_measurement_time);
-//    }
+    //    ROS_WARN_STREAM( "Current time minus refinement time: " << (this->_current_measurement_time - shape_tracker_states->header.stamp).toSec() );
+    //    //Check if the result includes a valid refinement and updates
+    //    if((this->_current_measurement_time - shape_tracker_states->header.stamp).toSec() < MAX_DELAY_BETWEEN_FT_AND_ST)
+    //    {
+    //        ROS_WARN_STREAM("Received measurement from shape tracker");
+    //        this->_shape_tracker_meas = omip_msgs::ShapeTrackerStates(*shape_tracker_states);
+    //        this->_shape_tracker_received = true;
+    //    }else{
+    //        ROS_ERROR_STREAM("Received measurement from shape tracker but too late. Time of the refinement: "
+    //                         << shape_tracker_states->header.stamp <<  " Current time: " << this->_current_measurement_time);
+    //    }
+}
+
+void MultiRBTrackerNode::measurementCallbackOnlyPP(const ros::TimerEvent& event)
+{
+    ros::Time tinit = ros::Time::now();
+
+    ros::Time time_latest;
+    std::string error_string;
+    if(this->_tf_listener.getLatestCommonTime("/camera_rgb_optical_frame", "/ee", time_latest , &error_string))
+    {
+        ROS_ERROR("The latest commot time between ee and camera_rgb_optical_frame cannot be obtained! Are you connected to the robot?");
+        ROS_ERROR_STREAM(error_string);
+    }
+
+    this->_current_measurement_time = time_latest;//ros::Time::now() - ros::Duration(5*(double)_processing_factor/this->_sensor_fps);// We compute one step behind because we need that TF contains the transformation
+
+    // Measure the time interval between the previous measurement and the current measurement
+    ros::Duration time_between_meas = this->_current_measurement_time - this->_previous_measurement_time;
+
+    // Create empty visual measurement and pass it to the filter
+    rbt_measurement_t features_pc_pcl = rbt_measurement_t(new FeatureCloudPCLwc());
+    this->_re_filter->setMeasurement(features_pc_pcl, (double)this->_current_measurement_time.toNSec());
+
+    // Get the proprioception measurement
+    this->measurementCallbackProprioception();
+
+    // Processing fps: ignore (this->_processing_factor - 1) frames and process one. This gives effectively the desired processing fps: _sensor_fps/_processing_factor
+    if( this->_previous_measurement_time.toSec() != 0.)
+    {
+        // Use the predicted measurement and the received measurement to correct the state
+        this->_re_filter->correctState();
+    }
+
+    this->_re_filter->ReflectState();
+
+    // Publish the obtained new state
+    this->_publishState();
+
+    // Publish additional stuff
+    this->_PrintResults();
+    this->_PublishTF();
+    this->_PublishPosesWithCovariance();
+
+    // We add this pause so that predictions from the higher level have more than enough time to arrive
+    // We need these predictions to move the interacted rigid body
+    ros::Duration loop_duration(0.02);
+    loop_duration.sleep();
+
+    // Predict next RE state
+    this->_re_filter->predictState(this->_loop_period_ns);
+
+    // If the received prediction from the higher level is for the next time step we use it
+    if(abs((_last_predictions_kh.header.stamp - (this->_current_measurement_time + ros::Duration(_loop_period_ns/1e9))).toNSec()) < _loop_period_ns/2 )
+    {
+        ROS_ERROR_STREAM_NAMED("MultiRBTrackerNode.measurementCallback", "The prediction from higher level can be used to predict next measurement after correction");
+        this->_re_filter->addPredictedState(_last_predictions_kh, (double)_last_predictions_kh.header.stamp.toNSec());
+    }else{
+        ROS_ERROR_STREAM_NAMED("MultiRBTrackerNode.measurementCallback",
+                               "The prediction from higher level can NOT be used to predict next measurment after correction. Delay: "
+                               << (double)((this->_current_measurement_time + ros::Duration(_loop_period_ns/1e9)) - _last_predictions_kh.header.stamp).toNSec()/1e9);
+    }
+
+    // Predict next measurement based on the predicted state
+    this->_re_filter->predictMeasurement();
+
+    this->_previous_measurement_time = this->_current_measurement_time;
+
+    ros::Time tend = ros::Time::now();
+    ROS_WARN_STREAM("Time between meas pp: " << time_between_meas.toSec()*1000 << " ms");
+    ROS_WARN_STREAM("Total meas processing time pp: " << (tend-tinit).toSec()*1000 << " ms");
 }
 
 void MultiRBTrackerNode::measurementCallback(const boost::shared_ptr<rbt_measurement_ros_t const> &features_pc)
@@ -276,6 +370,14 @@ void MultiRBTrackerNode::measurementCallback(const boost::shared_ptr<rbt_measure
     pcl::fromROSMsg(*features_pc, *features_pc_pcl);
 
     this->_re_filter->setMeasurement(features_pc_pcl, (double)this->_current_measurement_time.toNSec());
+
+    ///////PROPRIOCEPTION
+    /// I need to do this update synchronized with the visual update because otherwise they could try to access the same parts of the
+    /// filter concurrently (e.g. the filter update)
+    if(_robot_interaction)
+    {
+        this->measurementCallbackProprioception();
+    }
 
     // Measure the time interval between the previous measurement and the current measurement
     ros::Duration time_between_meas = this->_current_measurement_time - this->_previous_measurement_time;
@@ -334,8 +436,13 @@ void MultiRBTrackerNode::measurementCallback(const boost::shared_ptr<rbt_measure
     this->_PublishClusteredFeatures();
     this->_PublishPosesWithCovariance();
 
-    ros::Duration loop_duration(0.02);
-    loop_duration.sleep();
+    // We add this pause so that predictions from the higher level have more than enough time to arrive
+    // We need these predictions to move the interacted rigid body
+    if(_robot_interaction)
+    {
+        ros::Duration loop_duration(0.02);
+        loop_duration.sleep();
+    }
 
     // Predict next RE state
     this->_re_filter->predictState(this->_loop_period_ns);
@@ -361,6 +468,47 @@ void MultiRBTrackerNode::measurementCallback(const boost::shared_ptr<rbt_measure
     ros::Time tend = ros::Time::now();
     ROS_WARN_STREAM("Time between meas vision: " << time_between_meas.toSec()*1000 << " ms");
     ROS_WARN_STREAM("Total meas processing time vision: " << (tend-tinit).toSec()*1000 << " ms");
+}
+
+void MultiRBTrackerNode::measurementCallbackProprioception()
+{
+    tf::StampedTransform current_eef_wrt_camframe_transform;
+    Eigen::Matrix4d current_eef_wrt_camframe_eigen;
+    ros::Time time_latest;
+    std::string error_string;
+    // Returns non-zero if an error
+    if(this->_tf_listener.getLatestCommonTime("/camera_rgb_optical_frame", "/ee", time_latest , &error_string))
+    {
+        ROS_ERROR("The current ee pose cannot be obtained! Are you connected to the robot?");
+        ROS_ERROR_STREAM(error_string);
+        current_eef_wrt_camframe_eigen = Eigen::Matrix4d::Identity();
+    }else{
+        if(_current_measurement_time - time_latest  < ros::Duration(1e-2))
+        {
+            try{
+                // I should use _current_measurement_time_proprioception but it only works with the real robot!
+                if(_current_measurement_time - time_latest  < ros::Duration(0.0))
+                {
+                    this->_tf_listener.lookupTransform( "/camera_rgb_optical_frame", "/ee", _current_measurement_time , current_eef_wrt_camframe_transform);
+                }else{
+                    this->_tf_listener.lookupTransform( "/camera_rgb_optical_frame", "/ee", time_latest , current_eef_wrt_camframe_transform);
+                }
+                current_eef_wrt_camframe_transform.getOpenGLMatrix(current_eef_wrt_camframe_eigen.data());
+            }
+            catch (tf::TransformException ex)
+            {
+                ROS_ERROR("%s",ex.what());
+                current_eef_wrt_camframe_eigen = Eigen::Matrix4d::Identity();
+            }
+        }else{
+            ROS_ERROR("The current ee pose cannot be obtained! Are you connected to the robot?");
+            std::cout << "Current meas time: " << _current_measurement_time << std::endl;
+            std::cout << "Time of the last common tf: " << time_latest << std::endl;
+            current_eef_wrt_camframe_eigen = Eigen::Matrix4d::Identity();
+        }
+    }
+
+    this->_re_filter->setMeasurementProprioception(current_eef_wrt_camframe_eigen, (double)_current_measurement_time.toNSec());
 }
 
 void MultiRBTrackerNode::statePredictionCallback(const boost::shared_ptr<rbt_state_t const> &predicted_rb_poses)
@@ -414,15 +562,54 @@ void MultiRBTrackerNode::_PrintResults() const
             num_supporting_feats = this->_re_filter->getNumberSupportingFeatures(poses_idx);
 
             TransformMatrix2Twist(tracked_bodies_motion[poses_idx], pose_in_ec);
-            ROS_INFO_NAMED( "MultiRBTrackerNode::_PublishRBPoses", "RB%2d: Supporting feats: %d, Pose (vx,vy,vz,rx,ry,rz): % 2.2f,% 2.2f,% 2.2f,% 2.2f,% 2.2f,% 2.2f",
-                            (int)RB_id,
-                            num_supporting_feats,
-                            pose_in_ec.vx(),
-                            pose_in_ec.vy(),
-                            pose_in_ec.vz(),
-                            pose_in_ec.rx(),
-                            pose_in_ec.ry(),
-                            pose_in_ec.rz());
+#define MULTIMODAL_EE_FILTER_ID 3
+#define DEFORMED_END_EFFECTOR_FILTER_ID 4
+#define INTERACTED_RB_FILTER_ID 5
+            if(_robot_interaction && RB_id == MULTIMODAL_EE_FILTER_ID)
+            {
+                ROS_INFO_NAMED( "MultiRBTrackerNode::_PublishRBPoses", "RB%2d (MM EE): Supporting feats: %d, Pose (vx,vy,vz,rx,ry,rz): % 2.2f,% 2.2f,% 2.2f,% 2.2f,% 2.2f,% 2.2f",
+                                (int)RB_id,
+                                num_supporting_feats,
+                                pose_in_ec.vx(),
+                                pose_in_ec.vy(),
+                                pose_in_ec.vz(),
+                                pose_in_ec.rx(),
+                                pose_in_ec.ry(),
+                                pose_in_ec.rz());
+            }else if(_robot_interaction && RB_id == DEFORMED_END_EFFECTOR_FILTER_ID)
+            {
+                ROS_INFO_NAMED( "MultiRBTrackerNode::_PublishRBPoses", "RB%2d (DEF EE): Supporting feats: %d, Pose (vx,vy,vz,rx,ry,rz): % 2.2f,% 2.2f,% 2.2f,% 2.2f,% 2.2f,% 2.2f",
+                                (int)RB_id,
+                                num_supporting_feats,
+                                pose_in_ec.vx(),
+                                pose_in_ec.vy(),
+                                pose_in_ec.vz(),
+                                pose_in_ec.rx(),
+                                pose_in_ec.ry(),
+                                pose_in_ec.rz());
+
+            }else if(_robot_interaction && RB_id == INTERACTED_RB_FILTER_ID)
+            {
+                ROS_INFO_NAMED( "MultiRBTrackerNode::_PublishRBPoses", "RB%2d (IB): Supporting feats: %d, Pose (vx,vy,vz,rx,ry,rz): % 2.2f,% 2.2f,% 2.2f,% 2.2f,% 2.2f,% 2.2f",
+                                (int)RB_id,
+                                num_supporting_feats,
+                                pose_in_ec.vx(),
+                                pose_in_ec.vy(),
+                                pose_in_ec.vz(),
+                                pose_in_ec.rx(),
+                                pose_in_ec.ry(),
+                                pose_in_ec.rz());
+            }else{
+                ROS_INFO_NAMED( "MultiRBTrackerNode::_PublishRBPoses", "RB%2d: Supporting feats: %d, Pose (vx,vy,vz,rx,ry,rz): % 2.2f,% 2.2f,% 2.2f,% 2.2f,% 2.2f,% 2.2f",
+                                (int)RB_id,
+                                num_supporting_feats,
+                                pose_in_ec.vx(),
+                                pose_in_ec.vy(),
+                                pose_in_ec.vz(),
+                                pose_in_ec.rx(),
+                                pose_in_ec.ry(),
+                                pose_in_ec.rz());
+            }
         }
     }
 }

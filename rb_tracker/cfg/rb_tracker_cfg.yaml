@@ -51,16 +51,6 @@ min_num_supporting_feats_to_correct: 8
 static_environment_type: 1
 cam_motion_constraint: 6
 
-# Min value of the noise of the coordinates of a feature. We compare this value with the value of the sensor-based estimation,
-# which depends on the depth of the feature (larger depth implies larger uncertainty)
-min_cov_meas_x: 0.03
-min_cov_meas_y: 0.03
-min_cov_meas_z: 0.03
-
-# Factor to determine the uncertainty of the coordinates of a feature. This assumes linear dependency of the uncertainty
-# with the feature depth: coord_uncertainty = feature.z / COV_MEAS_DEPTH_FACTOR
-cov_meas_depth_factor: 100.0
-
 # System noise. It is equivalent to the acceleration of the wiener process
 # These values are multiplied by DeltaT, (DeltaT/2)^2 and (DeltaT/3)^3, that usually at 30fps are 0.03, 0.0002 and 0,000001372
 # For example, 
@@ -81,3 +71,13 @@ prior_cov_vel: 0.1
 min_num_points_in_segment: 300
 min_probabilistic_value: 0.9
 max_fitness_score: 0.005
+
+# Params for the interacted rigid body and the end-effector filter
+##############################################################
+# Max threshold allowed between predicted and measured feature locations for the EE and the IRB filters
+max_feat_error_irb: 0.05
+max_feat_error_ee: 0.05
+# Max distance between features and the frames of the EE or the interacted RB to consider that they can 
+# support the filters (set to -1 if you don't want to use the proximity prior)
+max_distance_ee: 0.1
+max_distance_irb: 0.2

@@ -35,6 +35,7 @@ Projectname = {Interactive Perception}
 #include <rb_tracker/RBTrackerDynReconfConfig.h>
 
 #include "rb_tracker/RBFilter.h"
+#include "rb_tracker/RBFilterCentralizedIntegrator.h"
 
 #include "omip_common/FeaturesDataBase.h"
 #include "omip_msgs/RigidBodyTwistWithCovMsg.h"
@@ -48,6 +49,7 @@ Projectname = {Interactive Perception}
 #include <tf/transform_listener.h>
 
 #include "rb_tracker/StaticEnvironmentFilter.h"
+#include "rb_tracker/EndEffectorFilter.h"
 
 #include <boost/thread/thread.hpp>
 #include <boost/thread/mutex.hpp>
@@ -114,6 +116,7 @@ public:
    * @param acquired_measurement Latest acquired measurement
    */
     virtual void setMeasurement(rbt_measurement_t acquired_measurement, const double& measurement_timestamp);
+    virtual void setMeasurementProprioception(const Eigen::Matrix4d& current_ee_pose, double time_pose_ns);
 
     /**
    * @brief First step when updating the filter. The next state is predicted from current state and system model (part of the RecursiveEstimatorInterace)
@@ -326,26 +329,6 @@ public:
         this->_prior_cov_vel = v;
     }
 
-    virtual void setMinCovarianceMeasurementX(double v)
-    {
-        this->_min_cov_meas_x = v;
-    }
-
-    virtual void setMinCovarianceMeasurementY(double v)
-    {
-        this->_min_cov_meas_y = v;
-    }
-
-    virtual void setMinCovarianceMeasurementZ(double v)
-    {
-        this->_min_cov_meas_z = v;
-    }
-
-    virtual void setMeasurementDepthFactor(double v)
-    {
-        this->_meas_depth_factor = v;
-    }
-
     virtual void setCovarianceSystemAccelerationTx(double v)
     {
         this->_cov_sys_acc_tx = v;
@@ -411,15 +394,48 @@ public:
         this->_min_num_supporting_feats_to_correct = v;
     }
 
+    virtual void setRobotInteraction(bool ri)
+    {
+        this->_robot_interaction = ri;
+    }
+
+    virtual void setInteractedRigidBodyMaxFeatureError(double v)
+    {
+        if(this->_interacted_rb_filter)
+        {
+            ROS_WARN_STREAM("New threshold for the error between predicted and measured feature locations for the interacted rigid body: " << v);
+            this->_interacted_rb_filter->setEstimationThreshold(v);
+        }else{
+            ROS_ERROR("There is no interacted rigid body filter!");
+        }
+    }
+
+    virtual void setEndEffectorEstimationThreshold(double v)
+    {
+        if(this->_end_effector_proprioception_filter)
+        {
+            ROS_WARN_STREAM("New threshold for the error between predicted and measured feature locations for the end-effector vision-based filter: " << v);
+            this->_end_effector_proprioception_filter->setEstimationThreshold(v);
+        }else{
+            ROS_ERROR("There is no end effector vision-based filter!");
+        }
+    }
+
+    virtual void setEndEffectorMaxDistanceFeaturesToBody(double max_distance_ee)
+    {
+        this->_max_distance_ee = max_distance_ee;
+    }
+
+    virtual void setInteractedRigidBodyMaxDistanceFeaturesToBody(double max_distance_irb)
+    {
+        this->_max_distance_irb = max_distance_irb;
+    }
+
 protected:    
 
     int _max_num_rb;
     double _prior_cov_pose;
     double _prior_cov_vel;
-    double _min_cov_meas_x;
-    double _min_cov_meas_y;
-    double _min_cov_meas_z;
-    double _meas_depth_factor;
     double _cov_sys_acc_tx;
     double _cov_sys_acc_ty;
     double _cov_sys_acc_tz;
@@ -435,7 +451,11 @@ protected:
     double _min_amount_rotation_for_new_rb;
 
 
-    std::vector<RBFilter::Ptr> _kalman_filters;
+    std::vector<RBFilter::Ptr> _vision_based_kalman_filters;
+    std::vector<RBFilter::Ptr> _proprioception_based_kalman_filters;
+    std::vector<RBFilterCentralizedIntegrator::Ptr> _centralized_integrators;
+
+    std::vector<RBFilter::Ptr> _output_kalman_filters;  //redundant!
 
     FeaturesDataBase::Ptr _features_db;
 
@@ -472,9 +492,6 @@ protected:
 
     rbt_state_t _last_predicted_state_kh;
 
-    double _max_distance_ee;
-    double _max_distance_irb;
-
     std::vector<Feature::Id> _free_feat_ids, _really_free_feat_ids;
 
     std::ofstream _really_free_feats_file;
@@ -482,6 +499,17 @@ protected:
     boost::mutex _measurement_timestamp_ns_mutex;
     boost::mutex::scoped_lock _measurement_timestamp_ns_lock;
 
+    bool _robot_interaction;
+    double _max_distance_ee;
+    double _max_distance_irb;
+    EndEffectorFilter::Ptr _end_effector_proprioception_filter;
+    RBFilter::Ptr _end_effector_vision_filter;
+    RBFilter::Ptr _interacted_rb_filter;
+    RBFilter::Ptr _deformed_end_effector_filter;
+    ros::NodeHandle _nh;
+    tf::TransformListener _tf_listener;
+
+    std::map<uint32_t, Eigen::Matrix3d> _feat_covs;
 };
 }
 

@@ -36,7 +36,8 @@ RBFilter::RBFilter() :
     _min_num_supporting_feats_to_correct(5),
     _use_predicted_state_from_kh(false),
     _use_predicted_measurement_from_kh(false),
-    _last_time_interval_ns(0.0)
+    _last_time_interval_ns(0.0),
+    _feat_covs_ptr(NULL)
 {
     _pose = Eigen::Matrix4d::Identity();
     this->_initial_location_of_centroid = Feature::Location(0,0,0);
@@ -56,7 +57,8 @@ RBFilter::RBFilter(double loop_period_ns,
     _features_database(feats_database),
     _min_num_supporting_feats_to_correct(5),
     _use_predicted_state_from_kh(false),
-    _use_predicted_measurement_from_kh(false)
+    _use_predicted_measurement_from_kh(false),
+    _feat_covs_ptr(NULL)
 {
     this->_initial_location_of_centroid = Feature::Location(trajectory[0](0,3),trajectory[0](1,3),trajectory[0](2,3));
     this->_trajectory = std::vector<Eigen::Matrix4d>(trajectory.begin()+1, trajectory.end());
@@ -94,9 +96,10 @@ void RBFilter::predictState(double time_interval_ns)
     if(time_interval_ns < 0)
     {
         std::cout << "Time interval negative!" << std::endl;
-        this->_last_time_interval_ns = time_interval_ns;
         getchar();
     }
+
+    this->_last_time_interval_ns = time_interval_ns;
 
     // The system noise is proportional to the time elapsed between the previous and the current measurement
     Eigen::Matrix<double, 6, 6> sys_noise_COV = Eigen::Matrix<double, 6, 6>::Zero();
@@ -203,8 +206,6 @@ void RBFilter::correctState()
     {
         int meas_dimension = 3 * num_supporting_feats;
 
-        double feature_depth = 0.;
-
         Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> > G_t((this->_G_t_memory.data()), 6, meas_dimension);
         Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> > R_inv_times_innovation((this->_R_inv_times_innovation_memory.data()), meas_dimension, 1);
 
@@ -216,7 +217,6 @@ void RBFilter::correctState()
 
         int feat_idx = 0;
 
-        Eigen::Matrix3d R_seq = Eigen::Matrix3d::Zero();
         Eigen::Matrix<double, 6, 6> P_minus_seq = _predicted_pose_covariance;
 
         //std::cout << _predicted_pose_covariance << std::endl;
@@ -251,15 +251,12 @@ void RBFilter::correctState()
 
             feature_innovation = current_location - predicted_location;
 
-            feature_depth = supporting_feat_ptr->getLastZ();
+            std::map<uint32_t, Eigen::Matrix3d>::iterator it = this->_feat_covs_ptr->find(supporting_feat_id);
 
-            R_seq( 0, 0) =  std::max(this->_min_cov_meas_x, feature_depth / this->_meas_depth_factor);
-            R_seq( 1, 1) =  std::max(this->_min_cov_meas_y, feature_depth / this->_meas_depth_factor);
-            R_seq( 2, 2) =  std::max(this->_min_cov_meas_z, feature_depth / this->_meas_depth_factor);
-
-            R_inv_times_innovation(3 * feat_idx ) = feature_innovation.x()/(std::max(this->_min_cov_meas_x, feature_depth / this->_meas_depth_factor));
-            R_inv_times_innovation(3 * feat_idx + 1) = feature_innovation.y()/(std::max(this->_min_cov_meas_y, feature_depth / this->_meas_depth_factor));
-            R_inv_times_innovation(3 * feat_idx + 2) = feature_innovation.z()/(std::max(this->_min_cov_meas_z, feature_depth / this->_meas_depth_factor));
+            // We assume only main diagonal non-zero for R_seq
+            R_inv_times_innovation(3 * feat_idx ) = feature_innovation.x()/it->second(0,0);
+            R_inv_times_innovation(3 * feat_idx + 1) = feature_innovation.y()/it->second(1,1);
+            R_inv_times_innovation(3 * feat_idx + 2) = feature_innovation.z()/it->second(2,2);
 
             _D_T_p0_circle(0,4) = predicted_location[2];
             _D_T_p0_circle(0,5) = -predicted_location[1];
@@ -274,7 +271,7 @@ void RBFilter::correctState()
 
             S_seq = _D_T_p0_circle * P_HT_seq;
 
-            S_seq += R_seq;
+            S_seq += it->second;
 
             invert3x3MatrixEigen2(S_seq, S_inv_seq );
 
@@ -367,6 +364,53 @@ bool isPredictionYBetterThanX(boost::tuple<size_t, double, Eigen::Matrix<double,
                 return false;
             }
         }
+    }
+}
+
+void RBFilter::correctState(const RB_id_t& rrb_id, const Eigen::Matrix4d& other_rb_pose, const Eigen::Matrix<double, 6, 6>& other_rb_pose_cov)
+{
+    // First look for the prediction about the relative pose for the given rb_name
+    std::map<RB_id_t, Eigen::Matrix4d>::iterator predicted_change_in_relative_pose_it = _predicted_change_in_relative_pose_in_rrbf.find(rrb_id);
+
+    // It found a dependency!
+    if(predicted_change_in_relative_pose_it != _predicted_change_in_relative_pose_in_rrbf.end())
+    {
+        // Using: http://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=1238637 "Computing MAP trajectories by representing, propagating and combining PDFs over groups"
+        // Equations 9 and 13
+        Eigen::Matrix4d rb_pose_measurement = other_rb_pose*predicted_change_in_relative_pose_it->second;
+
+        Eigen::Matrix4d innovation_ht = rb_pose_measurement*_pose.inverse();
+        Eigen::Twistd innovation_ec;
+        TransformMatrix2Twist(innovation_ht, innovation_ec);
+
+        Eigen::Matrix<double, 6, 1> innovation_vec;
+        innovation_vec << innovation_ec.vx(), innovation_ec.vy(), innovation_ec.vz(),
+                innovation_ec.rx(), innovation_ec.ry(), innovation_ec.rz();
+
+        Eigen::Matrix<double, 6, 1> pose_update_vec = _pose_covariance*(_pose_covariance + other_rb_pose_cov + _predicted_change_in_relative_pose_cov_in_rrbf[rrb_id]).inverse()*innovation_vec;
+        Eigen::Twistd pose_update_ec(pose_update_vec[3], pose_update_vec[4], pose_update_vec[5], pose_update_vec[0], pose_update_vec[1], pose_update_vec[2]);
+        Eigen::Matrix4d pose_update_ht;
+        Twist2TransformMatrix(pose_update_ec, pose_update_ht);
+        Eigen::Matrix4d updated_pose = pose_update_ht*_pose;
+
+
+        _pose_covariance = _pose_covariance*
+                (_pose_covariance + other_rb_pose_cov + _predicted_change_in_relative_pose_cov_in_rrbf[rrb_id]).inverse()*
+                (other_rb_pose_cov + _predicted_change_in_relative_pose_cov_in_rrbf[rrb_id]);
+
+        _pose = updated_pose;
+        _trajectory.pop_back();
+
+        Eigen::Matrix4d delta_pose = _pose*_trajectory.at(_trajectory.size()-1).inverse();
+
+        Eigen::Twistd delta_pose_ec;
+        TransformMatrix2Twist(delta_pose, delta_pose_ec);
+        this->_velocity = delta_pose_ec/(_last_time_interval_ns/1e9);
+
+        _trajectory.push_back(_pose);
+
+        _predicted_change_in_relative_pose_in_rrbf.erase (predicted_change_in_relative_pose_it);
+        _predicted_change_in_relative_pose_cov_in_rrbf.erase(rrb_id);
     }
 }
 
@@ -476,8 +520,7 @@ void RBFilter::estimateBestPredictionAndSupportingFeatures()
 
     case 2:
     {
-        ROS_ERROR_STREAM_NAMED("RBFilter.estimateBestPredictionAndSupportingFeatures",
-                               "RB" << _id << " Using prediction from higher level!");
+        std::cout << "RB" << _id<<" Using prediction from higher level" << std::endl;
         this->_predicted_pose = _predicted_pose_kh;
         this->_predicted_pose_covariance = _predicted_pose_cov_kh;
         this->_supporting_features_ids = supporting_feats_based_on_kh;
@@ -497,29 +540,58 @@ void RBFilter::addSupportingFeature(Feature::Id supporting_feat_id)
 
 void RBFilter::setPredictedState(const omip_msgs::RigidBodyPoseAndVelMsg hypothesis)
 {
-    this->_use_predicted_state_from_kh = true;
-
-    Eigen::Twistd predicted_pose_kh_ec(hypothesis.pose_wc.twist.angular.x,
-                                                   hypothesis.pose_wc.twist.angular.y,
-                                                   hypothesis.pose_wc.twist.angular.z,
-                                                   hypothesis.pose_wc.twist.linear.x,
-                                                   hypothesis.pose_wc.twist.linear.y,
-                                                   hypothesis.pose_wc.twist.linear.z);
-    this->_predicted_pose_kh = predicted_pose_kh_ec.exp(1e-12).toHomogeneousMatrix();
-
-    this->_predicted_velocity_kh = Eigen::Twistd(hypothesis.velocity_wc.twist.angular.x,
-                                                 hypothesis.velocity_wc.twist.angular.y,
-                                                 hypothesis.velocity_wc.twist.angular.z,
-                                                 hypothesis.velocity_wc.twist.linear.x,
-                                                 hypothesis.velocity_wc.twist.linear.y,
-                                                 hypothesis.velocity_wc.twist.linear.z);
-    for(int i =0; i<6; i++)
+    // Hypothesis about the pose of this rigid body wrt the SF (absolute pose -> we use this as an alternative system model)
+    if(hypothesis.ref_rb_id == 0)
     {
-        for(int j=0; j<6; j++)
+        this->_use_predicted_state_from_kh = true;
+        Eigen::Twistd predicted_delta_pose_kh_ec(hypothesis.pose_wc.twist.angular.x,
+                                                 hypothesis.pose_wc.twist.angular.y,
+                                                 hypothesis.pose_wc.twist.angular.z,
+                                                 hypothesis.pose_wc.twist.linear.x,
+                                                 hypothesis.pose_wc.twist.linear.y,
+                                                 hypothesis.pose_wc.twist.linear.z);
+        Twist2TransformMatrix(predicted_delta_pose_kh_ec, _predicted_delta_pose_kh);
+        this->_predicted_pose_kh = _predicted_delta_pose_kh*_pose;
+        
+        this->_predicted_velocity_kh = Eigen::Twistd(hypothesis.velocity_wc.twist.angular.x,
+                                                     hypothesis.velocity_wc.twist.angular.y,
+                                                     hypothesis.velocity_wc.twist.angular.z,
+                                                     hypothesis.velocity_wc.twist.linear.x,
+                                                     hypothesis.velocity_wc.twist.linear.y,
+                                                     hypothesis.velocity_wc.twist.linear.z);
+        for(int i =0; i<6; i++)
         {
-            this->_predicted_pose_cov_kh(i,j) = hypothesis.pose_wc.covariance[6*i + j];
-            this->_predicted_velocity_cov_kh(i,j) = hypothesis.velocity_wc.covariance[6*i + j];
+            for(int j=0; j<6; j++)
+            {
+                this->_predicted_pose_cov_kh(i,j) = 10*hypothesis.pose_wc.covariance[6*i + j];
+                this->_predicted_velocity_cov_kh(i,j) = hypothesis.velocity_wc.covariance[6*i + j];
+            }
         }
+    }
+    // Hypothesis about the pose of this rigid body wrt another RB (relative pose -> we use this as an additional measurement)
+    else
+    {
+        // Add the pose to the map of predicted relative poses
+        Eigen::Twistd predicted_delta_pose_kh_ec_wrt_rrb(hypothesis.pose_wc.twist.angular.x,
+                                                 hypothesis.pose_wc.twist.angular.y,
+                                                 hypothesis.pose_wc.twist.angular.z,
+                                                 hypothesis.pose_wc.twist.linear.x,
+                                                 hypothesis.pose_wc.twist.linear.y,
+                                                 hypothesis.pose_wc.twist.linear.z);
+        Eigen::Matrix4d predicted_delta_pose_kh_wrt_rrb;
+        Twist2TransformMatrix(predicted_delta_pose_kh_ec_wrt_rrb, predicted_delta_pose_kh_wrt_rrb);
+        this->_predicted_change_in_relative_pose_in_rrbf[hypothesis.ref_rb_id] = predicted_delta_pose_kh_wrt_rrb;
+
+        // Add the covariance of the pose to the map of predicted covariances of the relative poses
+        Eigen::Matrix<double, 6, 6> predicted_relative_pose_cov = Eigen::Matrix<double, 6, 6>::Zero();
+        for(int i =0; i<6; i++)
+        {
+            for(int j=0; j<6; j++)
+            {
+                predicted_relative_pose_cov(i,j) = 10*hypothesis.pose_wc.covariance[6*i + j];
+            }
+        }
+        this->_predicted_change_in_relative_pose_cov_in_rrbf[hypothesis.ref_rb_id] = predicted_relative_pose_cov;
     }
 }
 

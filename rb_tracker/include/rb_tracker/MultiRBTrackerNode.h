@@ -96,12 +96,8 @@ public:
    * @param features_pc Input point cloud of the 3D tracked features
    */
   virtual void measurementCallback(const boost::shared_ptr<rbt_measurement_ros_t const> &features_pc);
-
-  void MeasurementFromShapeTrackerCallback(const boost::shared_ptr<omip_msgs::ShapeTrackerStates const> &shape_tracker_states);
-
-  void MatthiasRefinementsCallback(const boost::shared_ptr<rbt_state_t const> &matthias_refinements);
-
-  void RGBDPCCallback(const sensor_msgs::PointCloud2ConstPtr &full_pc_msg);
+  virtual void measurementCallbackProprioception();
+  virtual void MeasurementFromShapeTrackerCallback(const boost::shared_ptr<omip_msgs::ShapeTrackerStates const> &shape_tracker_states);
 
   /**
    * @brief Callback for the predictions about the state of this RE level coming from the higher level of the hierarchy
@@ -122,6 +118,9 @@ public:
    * Read parameters to create the RBMEKFTracker
    */
   void ReadParameters();
+
+
+  virtual void measurementCallbackOnlyPP(const ros::TimerEvent &event);
 
 protected:
 
@@ -221,8 +220,13 @@ protected:
   dynamic_reconfigure::Server<rb_tracker::RBTrackerDynReconfConfig>::CallbackType _dr_callback;
 
   ros::Publisher _state_publisher2;
-  Eigen::Twistd _previous_twist;
   rbt_state_t _last_predictions_kh;
+
+  bool _robot_interaction;
+  tf::TransformListener _tf_listener;
+
+  bool _only_proprioception;
+  ros::Timer _only_pp_timer;
 
 };
 

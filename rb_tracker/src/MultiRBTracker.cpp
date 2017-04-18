@@ -76,7 +76,8 @@ MultiRBTracker::MultiRBTracker(int max_num_rb,
     _max_fitness_score(0.0),
     _min_num_supporting_feats_to_correct(7),
     _max_distance_ee(-1),
-    _max_distance_irb(-1)
+    _max_distance_irb(-1),
+    _robot_interaction(false)
 {
 
     //_really_free_feats_file.open("really_free_feats_file.txt");
@@ -94,19 +95,17 @@ MultiRBTracker::MultiRBTracker(int max_num_rb,
     _static_environment_filter = StaticEnvironmentFilter::Ptr(new StaticEnvironmentFilter(this->_loop_period_ns,
                                                                                       this->_features_db,
                                                                                       this->_static_motion_threshold));
+    _static_environment_filter->setPointerFeatCovsMap(&_feat_covs);
     _static_environment_filter->setComputationType(static_environment_tracker_type);
     _static_environment_filter->setFeaturesDatabase(this->_features_db);
     _static_environment_filter->setMotionConstraint(initial_cam_motion_constraint);
 
-    this->_kalman_filters.push_back(_static_environment_filter);
+    this->_vision_based_kalman_filters.push_back(_static_environment_filter);
+    this->_output_kalman_filters.push_back(_static_environment_filter);
 }
 
 void MultiRBTracker::Init()
 {
-    _static_environment_filter->setMeasurementDepthFactor(this->_meas_depth_factor);
-    _static_environment_filter->setMinCovarianceMeasurementX(this->_min_cov_meas_x);
-    _static_environment_filter->setMinCovarianceMeasurementY(this->_min_cov_meas_y);
-    _static_environment_filter->setMinCovarianceMeasurementZ(this->_min_cov_meas_z);
     _static_environment_filter->setPriorCovariancePose(this->_prior_cov_pose);
     _static_environment_filter->setPriorCovarianceVelocity(this->_prior_cov_vel);
     _static_environment_filter->setCovarianceSystemAccelerationTx(this->_cov_sys_acc_tx);
@@ -118,6 +117,135 @@ void MultiRBTracker::Init()
     _static_environment_filter->setNumberOfTrackedFeatures(this->_num_tracked_feats);
     _static_environment_filter->setMinNumberOfSupportingFeaturesToCorrectPredictedState(this->_min_num_supporting_feats_to_correct);
     _static_environment_filter->Init();
+
+    if(_robot_interaction)
+    {
+        // They are changed later
+        double error_threshold = 0.2;
+
+        tf::StampedTransform transform;
+        Eigen::Matrix4d initial_ee_pose;
+        while(!this->_tf_listener.waitForTransform("/camera_rgb_optical_frame", "/ee", ros::Time(0), ros::Duration(0.05)))
+        {
+            ROS_ERROR("Waiting for initialization. Are you connected to the robot? Otherwise this loop will never end!");
+        }
+        try{
+            this->_tf_listener.lookupTransform("/camera_rgb_optical_frame", "/ee", ros::Time(0), transform);
+            transform.getOpenGLMatrix(initial_ee_pose.data());
+        }
+        catch (tf::TransformException ex)
+        {
+            ROS_ERROR("waitForTransform in MultiRBTracker failed!");
+            ROS_ERROR("%s",ex.what());
+            initial_ee_pose = Eigen::Matrix4d::Identity();
+        }
+        ROS_INFO_STREAM("Initial ee pose wrt camera frame: " << std::endl << initial_ee_pose);
+
+        std::vector<Eigen::Matrix4d> initial_pose_vector;
+        initial_pose_vector.push_back(initial_ee_pose);
+        initial_pose_vector.push_back(initial_ee_pose);
+        Eigen::Twistd initial_ee_vel = Eigen::Twistd(0,0,0,0,0,0);
+
+        // Proprioception filter for the end effector (RBid = 2)
+        this->_end_effector_proprioception_filter = EndEffectorFilter::Ptr(new EndEffectorFilter(this->_loop_period_ns,
+                                                                                  initial_pose_vector,
+                                                                                  initial_ee_vel,
+                                                                                  this->_features_db,
+                                                                                  error_threshold));
+        _end_effector_proprioception_filter->setPointerFeatCovsMap(&_feat_covs);
+        this->_proprioception_based_kalman_filters.push_back(this->_end_effector_proprioception_filter);
+
+        // Vision filter for the end effector (RBid = 3)
+        this->_end_effector_vision_filter = RBFilter::Ptr(new RBFilter(this->_loop_period_ns,
+                                                                                  initial_pose_vector,
+                                                                                  initial_ee_vel,
+                                                                                  this->_features_db,
+                                                                                  error_threshold));
+        _end_effector_vision_filter->setPointerFeatCovsMap(&_feat_covs);
+        this->_vision_based_kalman_filters.push_back(this->_end_effector_vision_filter);
+        _output_kalman_filters.push_back(_end_effector_vision_filter);
+
+        RBFilterCentralizedIntegrator::Ptr ee_integrator = RBFilterCentralizedIntegrator::Ptr(new RBFilterCentralizedIntegrator(this->_loop_period_ns,
+                                                                                                                                initial_ee_pose,
+                                                                                                                                initial_ee_vel));
+
+        ee_integrator->addRBFilter(_end_effector_proprioception_filter);
+        ee_integrator->addRBFilter(_end_effector_vision_filter);
+        this->_centralized_integrators.push_back(ee_integrator);
+
+        //  frame filter gets the RBid = 4
+        // We initialize it to be attached to the EE
+        this->_deformed_end_effector_filter = RBFilter::Ptr(new RBFilter(this->_loop_period_ns,
+                                                                 initial_pose_vector,
+                                                                 initial_ee_vel,
+                                                                 this->_features_db,
+                                                                 error_threshold));
+        _deformed_end_effector_filter->setPointerFeatCovsMap(&_feat_covs);
+        _output_kalman_filters.push_back(_deformed_end_effector_filter);
+
+        // Interacted rb filter gets the RBid = 5
+        Eigen::Matrix4d initial_ee_pose2 = initial_ee_pose;
+        initial_ee_pose2(1,3) += 0.0;
+        std::vector<Eigen::Matrix4d> initial_pose_vector2;
+        initial_pose_vector2.push_back(initial_ee_pose2);
+        initial_pose_vector2.push_back(initial_ee_pose2);
+        this->_interacted_rb_filter = RBFilter::Ptr(new RBFilter(this->_loop_period_ns,
+                                                                 initial_pose_vector2,
+                                                                 initial_ee_vel,
+                                                                 this->_features_db,
+                                                                 error_threshold));
+        _interacted_rb_filter->setPointerFeatCovsMap(&_feat_covs);
+        this->_vision_based_kalman_filters.push_back(_interacted_rb_filter);
+        _output_kalman_filters.push_back(_interacted_rb_filter);
+
+        _end_effector_proprioception_filter->setPriorCovariancePose(this->_prior_cov_pose);
+        _end_effector_proprioception_filter->setPriorCovarianceVelocity(this->_prior_cov_vel);
+        _end_effector_proprioception_filter->setCovarianceSystemAccelerationTx(this->_cov_sys_acc_tx);
+        _end_effector_proprioception_filter->setCovarianceSystemAccelerationTy(this->_cov_sys_acc_ty);
+        _end_effector_proprioception_filter->setCovarianceSystemAccelerationTz(this->_cov_sys_acc_tz);
+        _end_effector_proprioception_filter->setCovarianceSystemAccelerationRx(this->_cov_sys_acc_rx);
+        _end_effector_proprioception_filter->setCovarianceSystemAccelerationRy(this->_cov_sys_acc_ry);
+        _end_effector_proprioception_filter->setCovarianceSystemAccelerationRz(this->_cov_sys_acc_rz);
+        _end_effector_proprioception_filter->setNumberOfTrackedFeatures(this->_num_tracked_feats);
+        _end_effector_proprioception_filter->setMinNumberOfSupportingFeaturesToCorrectPredictedState(this->_min_num_supporting_feats_to_correct);
+        _end_effector_proprioception_filter->Init();
+
+        _end_effector_vision_filter->setPriorCovariancePose(this->_prior_cov_pose);
+        _end_effector_vision_filter->setPriorCovarianceVelocity(this->_prior_cov_vel);
+        _end_effector_vision_filter->setCovarianceSystemAccelerationTx(this->_cov_sys_acc_tx);
+        _end_effector_vision_filter->setCovarianceSystemAccelerationTy(this->_cov_sys_acc_ty);
+        _end_effector_vision_filter->setCovarianceSystemAccelerationTz(this->_cov_sys_acc_tz);
+        _end_effector_vision_filter->setCovarianceSystemAccelerationRx(this->_cov_sys_acc_rx);
+        _end_effector_vision_filter->setCovarianceSystemAccelerationRy(this->_cov_sys_acc_ry);
+        _end_effector_vision_filter->setCovarianceSystemAccelerationRz(this->_cov_sys_acc_rz);
+        _end_effector_vision_filter->setNumberOfTrackedFeatures(this->_num_tracked_feats);
+        _end_effector_vision_filter->setMinNumberOfSupportingFeaturesToCorrectPredictedState(this->_min_num_supporting_feats_to_correct);
+        _end_effector_vision_filter->Init();
+
+        _interacted_rb_filter->setPriorCovariancePose(this->_prior_cov_pose);
+        _interacted_rb_filter->setPriorCovarianceVelocity(this->_prior_cov_vel);
+        _interacted_rb_filter->setCovarianceSystemAccelerationTx(this->_cov_sys_acc_tx);
+        _interacted_rb_filter->setCovarianceSystemAccelerationTy(this->_cov_sys_acc_ty);
+        _interacted_rb_filter->setCovarianceSystemAccelerationTz(this->_cov_sys_acc_tz);
+        _interacted_rb_filter->setCovarianceSystemAccelerationRx(this->_cov_sys_acc_rx);
+        _interacted_rb_filter->setCovarianceSystemAccelerationRy(this->_cov_sys_acc_ry);
+        _interacted_rb_filter->setCovarianceSystemAccelerationRz(this->_cov_sys_acc_rz);
+        _interacted_rb_filter->setNumberOfTrackedFeatures(this->_num_tracked_feats);
+        _interacted_rb_filter->setMinNumberOfSupportingFeaturesToCorrectPredictedState(this->_min_num_supporting_feats_to_correct);
+        _interacted_rb_filter->Init();
+
+        _deformed_end_effector_filter->setPriorCovariancePose(this->_prior_cov_pose);
+        _deformed_end_effector_filter->setPriorCovarianceVelocity(this->_prior_cov_vel);
+        _deformed_end_effector_filter->setCovarianceSystemAccelerationTx(this->_cov_sys_acc_tx);
+        _deformed_end_effector_filter->setCovarianceSystemAccelerationTy(this->_cov_sys_acc_ty);
+        _deformed_end_effector_filter->setCovarianceSystemAccelerationTz(this->_cov_sys_acc_tz);
+        _deformed_end_effector_filter->setCovarianceSystemAccelerationRx(this->_cov_sys_acc_rx);
+        _deformed_end_effector_filter->setCovarianceSystemAccelerationRy(this->_cov_sys_acc_ry);
+        _deformed_end_effector_filter->setCovarianceSystemAccelerationRz(this->_cov_sys_acc_rz);
+        _deformed_end_effector_filter->setNumberOfTrackedFeatures(this->_num_tracked_feats);
+        _deformed_end_effector_filter->setMinNumberOfSupportingFeaturesToCorrectPredictedState(this->_min_num_supporting_feats_to_correct);
+        _deformed_end_effector_filter->Init();
+    }
 }
 
 MultiRBTracker::~MultiRBTracker()
@@ -141,6 +269,9 @@ void MultiRBTracker::setMeasurement(rbt_measurement_t acquired_measurement, cons
 
     int tracked_features_index = 0;
     uint32_t feature_id;
+
+    Eigen::Matrix3d feat_cov;
+    std::map<uint32_t, Eigen::Matrix3d> feat_covs_recvd;
     for (; tracked_features_index < num_tracked_features; tracked_features_index++)
     {
         feature_id = acquired_measurement->points[tracked_features_index].label;
@@ -149,18 +280,48 @@ void MultiRBTracker::setMeasurement(rbt_measurement_t acquired_measurement, cons
             Feature::Location feature_location = Feature::Location(acquired_measurement->points[tracked_features_index].x, acquired_measurement->points[tracked_features_index].y,
                                                                    acquired_measurement->points[tracked_features_index].z);
             this->addFeatureLocation(feature_id, feature_location);
+
+            feat_cov << acquired_measurement->points[tracked_features_index].covariance[0], acquired_measurement->points[tracked_features_index].covariance[1],
+                    acquired_measurement->points[tracked_features_index].covariance[2], acquired_measurement->points[tracked_features_index].covariance[3],
+                    acquired_measurement->points[tracked_features_index].covariance[4], acquired_measurement->points[tracked_features_index].covariance[5],
+                    acquired_measurement->points[tracked_features_index].covariance[6], acquired_measurement->points[tracked_features_index].covariance[7],
+                    acquired_measurement->points[tracked_features_index].covariance[8];
+            feat_covs_recvd[feature_id] = feat_cov;
         }
     }
+    this->_feat_covs = feat_covs_recvd;
     this->_features_db->step();
+}
+
+void MultiRBTracker::setMeasurementProprioception(const Eigen::Matrix4d& current_ee_pose, double time_pose_ns)
+{
+    if(this->_robot_interaction)
+    {
+        this->_end_effector_proprioception_filter->setMeasurement(current_ee_pose, time_pose_ns);
+    }
 }
 
 void MultiRBTracker::predictState(double time_interval_ns)
 {
-    //First we update the filters using the internal state (system update)
-    for (std::vector<RBFilter::Ptr>::iterator filter_it = this->_kalman_filters.begin(); filter_it != this->_kalman_filters.end(); filter_it++)
+    //First we update the filters using the internal state (system update) for vision based filters
+    for (std::vector<RBFilter::Ptr>::iterator filter_it = this->_vision_based_kalman_filters.begin(); filter_it != this->_vision_based_kalman_filters.end(); filter_it++)
     {
         (*filter_it)->predictState(time_interval_ns);
-        (*filter_it)->doNotUsePredictionFromHigherLevel();
+        (*filter_it)->clearPredictionFromHigherLevel();
+    }
+
+    //Then we update the filters using the internal state (system update) for proprioception based filters
+    for (std::vector<RBFilter::Ptr>::iterator filter_it = this->_proprioception_based_kalman_filters.begin(); filter_it != this->_proprioception_based_kalman_filters.end(); filter_it++)
+    {
+        (*filter_it)->predictState(time_interval_ns);
+        (*filter_it)->clearPredictionFromHigherLevel();
+    }
+
+    if(_robot_interaction)
+    {
+        //Then update the deformed end-effector
+        this->_deformed_end_effector_filter->predictState(time_interval_ns);
+        this->_deformed_end_effector_filter->clearPredictionFromHigherLevel();
     }
 }
 
@@ -175,8 +336,8 @@ void MultiRBTracker::predictState(double time_interval_ns)
 //         RBFilter as an special one) but easier
 void MultiRBTracker::predictMeasurement()
 {
-    std::vector<RBFilter::Ptr>::iterator filter_it = this->_kalman_filters.begin();
-    for (; filter_it != this->_kalman_filters.end(); filter_it++)
+    std::vector<RBFilter::Ptr>::iterator filter_it = this->_vision_based_kalman_filters.begin();
+    for (; filter_it != this->_vision_based_kalman_filters.end(); filter_it++)
     {
         (*filter_it)->predictMeasurement();
     }
@@ -185,9 +346,9 @@ void MultiRBTracker::predictMeasurement()
 
     std::vector<Feature::Id> feature_ids;
     FeatureCloudPCLwc one_filter_predicted_measurement;
-    filter_it = this->_kalman_filters.begin();
+    filter_it = this->_vision_based_kalman_filters.begin();
     filter_it++;
-    for (; filter_it != this->_kalman_filters.end(); filter_it++)
+    for (; filter_it != this->_vision_based_kalman_filters.end(); filter_it++)
     {
         one_filter_predicted_measurement = (*filter_it)->getPredictedMeasurement();
         for (size_t feat_idx = 0; feat_idx < one_filter_predicted_measurement.points.size(); feat_idx++)
@@ -209,6 +370,12 @@ void MultiRBTracker::predictMeasurement()
         free_feat.covariance[0] = 20;
         this->_predicted_measurement->points.push_back(free_feat);
     }
+
+    filter_it = this->_proprioception_based_kalman_filters.begin();
+    for (; filter_it != this->_proprioception_based_kalman_filters.end(); filter_it++)
+    {
+        (*filter_it)->predictMeasurement();
+    }
 }
 
 rbt_measurement_t MultiRBTracker::getPredictedMeasurement() const
@@ -220,7 +387,7 @@ rbt_measurement_t MultiRBTracker::getPredictedMeasurement() const
 std::vector<Feature::Id> MultiRBTracker::estimateBestPredictionsAndSupportingFeatures()
 {
     std::vector<Feature::Id> all_filters_supporting_features;
-    for (std::vector<RBFilter::Ptr>::iterator filter_it = this->_kalman_filters.begin(); filter_it != this->_kalman_filters.end();)
+    for (std::vector<RBFilter::Ptr>::iterator filter_it = this->_vision_based_kalman_filters.begin(); filter_it != this->_vision_based_kalman_filters.end();)
     {
         (*filter_it)->estimateBestPredictionAndSupportingFeatures();
         std::vector<Feature::Id> this_filter_supporting_features = (*filter_it)->getSupportingFeatures();
@@ -228,7 +395,10 @@ std::vector<Feature::Id> MultiRBTracker::estimateBestPredictionsAndSupportingFea
         // If there are no features supporting to the EKF we delete it (no re-finding of RBs/EKFs possible)
         // Don't delete the filter of the environment!!! (filter_it == this->_kalman_filters.begin())
         if (this_filter_supporting_features.size()  < (size_t)this->_supporting_features_threshold
-                && *filter_it != this->_static_environment_filter )
+                && *filter_it != this->_static_environment_filter
+                && (!_robot_interaction || (*filter_it != _end_effector_proprioception_filter ) )
+                && (!_robot_interaction || (*filter_it != _end_effector_vision_filter ) )
+                && (!_robot_interaction || (*filter_it != _interacted_rb_filter) ) )
         {
             Eigen::Twistd last_pose_ec;
             TransformMatrix2Twist((*filter_it)->getPose(), last_pose_ec);
@@ -243,7 +413,16 @@ std::vector<Feature::Id> MultiRBTracker::estimateBestPredictionsAndSupportingFea
                              last_pose_ec.rx(),
                              last_pose_ec.ry(),
                              last_pose_ec.rz());
-            filter_it = this->_kalman_filters.erase(filter_it);
+
+            for (std::vector<RBFilter::Ptr>::iterator filter_it2 = this->_output_kalman_filters.begin(); filter_it2 != this->_output_kalman_filters.end(); filter_it2++)
+            {
+                if((*filter_it2)->getId() == (*filter_it)->getId())
+                {
+                    this->_output_kalman_filters.erase(filter_it2);
+                    break;
+                }
+            }
+            filter_it = this->_vision_based_kalman_filters.erase(filter_it);
         }
         else
         {
@@ -253,6 +432,13 @@ std::vector<Feature::Id> MultiRBTracker::estimateBestPredictionsAndSupportingFea
             filter_it++;
         }
     }
+
+    //This "passes" the predicted state from the _kh _v _b predictions to the general variable predicted_state
+    if(_robot_interaction)
+    {
+        _deformed_end_effector_filter->estimateBestPredictionAndSupportingFeatures();
+    }
+
     return all_filters_supporting_features;
 }
 
@@ -267,17 +453,36 @@ void MultiRBTracker::correctState()
     // 3: Try to assign free features to existing RBs
     std::vector<Feature::Id> really_free_feat_ids = this->ReassignFreeFeatures(free_feat_ids);
 
-    ROS_INFO_NAMED("MultiRBTracker::correctState","Moving bodies: %3d, free features: %3d", (int)this->_kalman_filters.size(), (int)really_free_feat_ids.size());
+    ROS_INFO_NAMED("MultiRBTracker::correctState","Moving bodies: %3d, free features: %3d", (int)this->_vision_based_kalman_filters.size(), (int)really_free_feat_ids.size());
 
     // 4: Correct the predicted state of each RBFilter using the last acquired Measurement
-    for (std::vector<RBFilter::Ptr>::iterator filter_it = this->_kalman_filters.begin(); filter_it != this->_kalman_filters.end(); filter_it++)
+    for (std::vector<RBFilter::Ptr>::iterator filter_it = this->_vision_based_kalman_filters.begin(); filter_it != this->_vision_based_kalman_filters.end(); filter_it++)
     {
         (*filter_it)->correctState();
+    }
+    for (std::vector<RBFilter::Ptr>::iterator filter_it = this->_proprioception_based_kalman_filters.begin(); filter_it != this->_proprioception_based_kalman_filters.end(); filter_it++)
+    {
+        (*filter_it)->correctState();
+    }
+    for (std::vector<RBFilterCentralizedIntegrator::Ptr>::iterator integrator_it = this->_centralized_integrators.begin();
+         integrator_it != this->_centralized_integrators.end(); integrator_it++)
+    {
+        (*integrator_it)->integrateBeliefs();
+    }    
+
+    // Lateral transfer! The pose of a rigid body can be used as measurement (if the kinematic analysis gave us an expected relative pose between them)
+    // Right now we only use to transfer the multimodal pose of the end-effector to the interacted rigid body
+    if(_robot_interaction)
+    {
+        this->_deformed_end_effector_filter->correctState();
+
+        _deformed_end_effector_filter->correctState(_end_effector_vision_filter->getId(), _end_effector_vision_filter->getPose(), _end_effector_vision_filter->getPoseCovariance());
+        _interacted_rb_filter->correctState(_deformed_end_effector_filter->getId(), _deformed_end_effector_filter->getPose(), _deformed_end_effector_filter->getPoseCovariance());
     }
 
     // 5: Try to create new filters for the "really free" features
     // NOTE: Keep this step after the correctState of the RBFilters, otherwise you will create a filter and correct it in the first iteration!
-    if(this->_kalman_filters.size() < this->_max_num_rb)
+    if(this->_vision_based_kalman_filters.size() < this->_max_num_rb)
     {
         this->TryToCreateNewFilter(really_free_feat_ids);
     }
@@ -327,7 +532,7 @@ void MultiRBTracker::processMeasurementFromShapeTracker(const omip_msgs::ShapeTr
 {
     for(int idx = 0; idx < meas_from_st.shape_tracker_states.size(); idx++)
     {
-        BOOST_FOREACH(RBFilter::Ptr filter, this->_kalman_filters)
+        BOOST_FOREACH(RBFilter::Ptr filter, this->_vision_based_kalman_filters)
         {
             if (filter->getId() == meas_from_st.shape_tracker_states.at(idx).rb_id )
             {
@@ -357,10 +562,7 @@ void MultiRBTracker::CreateNewFilter(const std::vector<Eigen::Matrix4d>& initial
                                                       this->_features_db,
                                                       this->_estimation_error_threshold));
 
-    new_kf->setMeasurementDepthFactor(this->_meas_depth_factor);
-    new_kf->setMinCovarianceMeasurementX(this->_min_cov_meas_x);
-    new_kf->setMinCovarianceMeasurementY(this->_min_cov_meas_y);
-    new_kf->setMinCovarianceMeasurementZ(this->_min_cov_meas_z);
+    new_kf->setPointerFeatCovsMap(&_feat_covs);
     new_kf->setPriorCovariancePose(this->_prior_cov_pose);
     new_kf->setPriorCovarianceVelocity(this->_prior_cov_vel);
     new_kf->setCovarianceSystemAccelerationTx(this->_cov_sys_acc_tx);
@@ -374,11 +576,13 @@ void MultiRBTracker::CreateNewFilter(const std::vector<Eigen::Matrix4d>& initial
 
     new_kf->Init();
 
-    this->_kalman_filters.push_back(new_kf);
+    this->_vision_based_kalman_filters.push_back(new_kf);
     BOOST_FOREACH(Feature::Id supporting_feat_id, initial_supporting_feats)
     {
         new_kf->addSupportingFeature(supporting_feat_id);
     }
+
+    this->_output_kalman_filters.push_back(new_kf);
 }
 
 std::vector<Feature::Id> MultiRBTracker::EstimateFreeFeatures(const std::vector<Feature::Id>& supporting_features)
@@ -414,6 +618,19 @@ std::vector<Feature::Id> MultiRBTracker::ReassignFreeFeatures(const std::vector<
     int best_ekf_idx = -1;
     Eigen::Matrix4d predicted_pose;
 
+    // If we use the prior of the proximity for the features to the end-effector and to the interacted rigid body, we will measure their distance to it
+    double distance_to_ee = 0.0;
+    double distance_to_irb = 0.0;
+    Feature::Location ee_location;
+    Feature::Location irb_location;
+    if(this->_robot_interaction && (_max_distance_ee != -1 || _max_distance_irb != -1))
+    {
+        geometry_msgs::PoseWithCovariancePtr ee_pose = _end_effector_vision_filter->getPoseWithCovariance();
+        ee_location = Feature::Location(ee_pose->pose.position.x, ee_pose->pose.position.y, ee_pose->pose.position.z);
+        geometry_msgs::PoseWithCovariancePtr irb_pose = _interacted_rb_filter->getPoseWithCovariance();
+        irb_location = Feature::Location(irb_pose->pose.position.x, irb_pose->pose.position.y, irb_pose->pose.position.z);
+    }
+
     // Check for each free feature if we can add it to one of the existing vision-based rigid bodies
     BOOST_FOREACH(Feature::Id free_feat_id, free_feat_ids)
     {
@@ -426,15 +643,45 @@ std::vector<Feature::Id> MultiRBTracker::ReassignFreeFeatures(const std::vector<
 
         // Get the prediction from each of the existing vision-based rigid bodies
         // TODO: Use the Mahalanobis distance between the uncertain feature location and its predicted location
-        for (size_t filter_idx = 0; filter_idx < this->_kalman_filters.size();filter_idx++)
+        for (size_t filter_idx = 0; filter_idx < this->_vision_based_kalman_filters.size();filter_idx++)
         {
-            // Get the most likely prediction about the next feature state (the likelihood is estimated in estimateSupportingFeatures and copied to the others
-            // so it is equivalent to get the belief pose from any hypothesis)
-            //prediction_error = this->_kalman_filters.at(filter_idx)->PredictFeatureLocationNew(free_feat, false, true);
+            predicted_pose = this->_vision_based_kalman_filters.at(filter_idx)->getPose();
 
-            predicted_pose = this->_kalman_filters.at(filter_idx)->getPose();
-            this->_kalman_filters.at(filter_idx)->PredictFeatureLocation(free_feat, predicted_pose, false, free_feature_predicted_location,true);
-            prediction_error = L2Distance(free_feature_last_location, free_feature_predicted_location);
+            // Special case 1: end-effector vision-based filter
+            if(this->_vision_based_kalman_filters.at(filter_idx) == _end_effector_vision_filter)
+            {
+                distance_to_ee = L2Distance(free_feature_last_location, ee_location);
+                // If the distance from the feature to the end-effector is too large, we set a large predition error
+                if(distance_to_ee > _max_distance_ee)
+                {
+                    prediction_error = 1e6;
+                }else{
+                    this->_vision_based_kalman_filters.at(filter_idx)->PredictFeatureLocation(free_feat, predicted_pose, false, free_feature_predicted_location,true);
+                    prediction_error = L2Distance(free_feature_last_location, free_feature_predicted_location);
+                }
+            }
+            // Special case 2: interacted rigid body filter
+            else if(this->_vision_based_kalman_filters.at(filter_idx) == _interacted_rb_filter)
+            {
+                distance_to_irb = L2Distance(free_feature_last_location, irb_location);
+                // If the distance from the feature to the interacted rigid body is too large, we set a large predition error
+                if(distance_to_irb > _max_distance_irb)
+                {
+                    prediction_error = 1e6;
+                }else{
+                    this->_vision_based_kalman_filters.at(filter_idx)->PredictFeatureLocation(free_feat, predicted_pose, false, free_feature_predicted_location,true);
+                    prediction_error = L2Distance(free_feature_last_location, free_feature_predicted_location);
+                }
+            }
+            // Normal case
+            else{
+                // Get the most likely prediction about the next feature state (the likelihood is estimated in estimateSupportingFeatures and copied to the others
+                // so it is equivalent to get the belief pose from any hypothesis)
+                //prediction_error = this->_kalman_filters.at(filter_idx)->PredictFeatureLocationNew(free_feat, false, true);
+
+                this->_vision_based_kalman_filters.at(filter_idx)->PredictFeatureLocation(free_feat, predicted_pose, false, free_feature_predicted_location,true);
+                prediction_error = L2Distance(free_feature_last_location, free_feature_predicted_location);
+            }
 
             if (prediction_error < feat_error)
             {
@@ -446,8 +693,8 @@ std::vector<Feature::Id> MultiRBTracker::ReassignFreeFeatures(const std::vector<
 
         if (best_ekf_idx != -1)
         {
-            this->_kalman_filters.at(best_ekf_idx)->addSupportingFeature(free_feat_id);
-            this->_kalman_filters.at(best_ekf_idx)->addPredictedFeatureLocation(best_predicted_location,free_feature_pre_last_location, free_feat_id);
+            this->_vision_based_kalman_filters.at(best_ekf_idx)->addSupportingFeature(free_feat_id);
+            this->_vision_based_kalman_filters.at(best_ekf_idx)->addPredictedFeatureLocation(best_predicted_location,free_feature_pre_last_location, free_feat_id);
         }
         else
         {
@@ -583,40 +830,55 @@ std::vector<Eigen::Matrix4d> MultiRBTracker::getPoses() const
 {
     std::vector<Eigen::Matrix4d> return_filter_results;
 
-    BOOST_FOREACH(RBFilter::Ptr filter, this->_kalman_filters)
+    BOOST_FOREACH(RBFilter::Ptr filter, this->_output_kalman_filters)
     {
         return_filter_results.push_back(filter->getPose());
     }
+
+
+
     return return_filter_results;
 }
 
 std::vector<geometry_msgs::PoseWithCovariancePtr> MultiRBTracker::getPosesWithCovariance() const
 {
     std::vector<geometry_msgs::PoseWithCovariancePtr> return_filter_results;
-    BOOST_FOREACH(RBFilter::Ptr filter, this->_kalman_filters)
+
+    BOOST_FOREACH(RBFilter::Ptr filter, this->_output_kalman_filters)
     {
         return_filter_results.push_back(filter->getPoseWithCovariance());
     }
+
+
+
     return return_filter_results;
 }
 
 std::vector<geometry_msgs::TwistWithCovariancePtr> MultiRBTracker::getPosesECWithCovariance() const
 {
     std::vector<geometry_msgs::TwistWithCovariancePtr> return_filter_results;
-    BOOST_FOREACH(RBFilter::Ptr filter, this->_kalman_filters)
+
+    BOOST_FOREACH(RBFilter::Ptr filter, this->_output_kalman_filters)
     {
         return_filter_results.push_back(filter->getPoseECWithCovariance());
     }
+
+
+
     return return_filter_results;
 }
 
 std::vector<geometry_msgs::TwistWithCovariancePtr> MultiRBTracker::getVelocitiesWithCovariance() const
 {
     std::vector<geometry_msgs::TwistWithCovariancePtr> return_filter_results;
-    BOOST_FOREACH(RBFilter::Ptr filter, this->_kalman_filters)
+
+    BOOST_FOREACH(RBFilter::Ptr filter, this->_output_kalman_filters)
     {
         return_filter_results.push_back(filter->getVelocityWithCovariance());
     }
+
+
+
     return return_filter_results;
 }
 
@@ -631,23 +893,23 @@ void MultiRBTracker::addFeatureLocation(Feature::Id f_id, Feature::Location f_lo
 
 RB_id_t MultiRBTracker::getRBId(int n) const
 {
-    return this->_kalman_filters.at(n)->getId();
+        return this->_output_kalman_filters.at(n)->getId();
 }
 
 int MultiRBTracker::getNumberSupportingFeatures(int n) const
 {
-    return this->_kalman_filters.at(n)->getNumberSupportingFeatures();
+    return this->_output_kalman_filters.at(n)->getNumberSupportingFeatures();
 }
 
 FeatureCloudPCL MultiRBTracker::getLabelledSupportingFeatures()
 {
     FeatureCloudPCL colored_pc;
-    std::vector<RBFilter::Ptr>::iterator filter_it =this->_kalman_filters.begin();
+    std::vector<RBFilter::Ptr>::iterator filter_it =this->_vision_based_kalman_filters.begin();
     // TODO: The next line is to not show the supporting features of the static rigid body.
     // I commented it out for the ICRA paper: we want to plot all points
 
     filter_it++;
-    for (; filter_it != this->_kalman_filters.end(); filter_it++)
+    for (; filter_it != this->_vision_based_kalman_filters.end(); filter_it++)
     {
         std::vector<Feature::Id> this_filter_supporting_features = (*filter_it)->getSupportingFeatures();
         for (size_t feat_idx = 0; feat_idx < this_filter_supporting_features.size();feat_idx++)
@@ -690,9 +952,9 @@ FeatureCloudPCL MultiRBTracker::getFreeFeatures()
 FeatureCloudPCL MultiRBTracker::getPredictedFeatures()
 {
     FeatureCloudPCL colored_pc;
-    std::vector<RBFilter::Ptr>::iterator filter_it =this->_kalman_filters.begin();
+    std::vector<RBFilter::Ptr>::iterator filter_it =this->_vision_based_kalman_filters.begin();
     filter_it++;
-    for (; filter_it != this->_kalman_filters.end(); filter_it++)
+    for (; filter_it != this->_vision_based_kalman_filters.end(); filter_it++)
     {
         FeatureCloudPCLwc::Ptr predicted_locations_pc = (*filter_it)->getFeaturesPredicted();
         for (size_t feat_idx = 0; feat_idx < predicted_locations_pc->points.size();feat_idx++)
@@ -712,9 +974,9 @@ FeatureCloudPCL MultiRBTracker::getPredictedFeatures()
 FeatureCloudPCL MultiRBTracker::getAtBirthFeatures()
 {
     FeatureCloudPCL colored_pc;
-    std::vector<RBFilter::Ptr>::iterator filter_it =this->_kalman_filters.begin();
+    std::vector<RBFilter::Ptr>::iterator filter_it =this->_vision_based_kalman_filters.begin();
     filter_it++;
-    for (; filter_it != this->_kalman_filters.end(); filter_it++)
+    for (; filter_it != this->_vision_based_kalman_filters.end(); filter_it++)
     {
         FeatureCloudPCLwc::Ptr at_birth_locations_pc = (*filter_it)->getFeaturesAtBirth();
         for (size_t feat_idx = 0; feat_idx < at_birth_locations_pc->points.size();feat_idx++)
@@ -735,10 +997,26 @@ std::vector<Eigen::Vector3d> MultiRBTracker::getCentroids() const
 {
     std::vector<Eigen::Vector3d> centroids;
     centroids.push_back(Eigen::Vector3d(0., 0., 0.));
-    std::vector<RBFilter::Ptr>::const_iterator filter_it = this->_kalman_filters.begin();
+    std::vector<RBFilter::Ptr>::const_iterator filter_it = this->_output_kalman_filters.begin();
     filter_it++;    //Ignore the static environment
 
-    for (; filter_it != this->_kalman_filters.end(); filter_it++)
+    // To handle differently the EE and IRB
+    if(this->_robot_interaction)
+    {
+        filter_it++;    // Jump the endeffector_filter
+        Eigen::Matrix4d end_effector_pose = _end_effector_proprioception_filter->getPose();
+        centroids.push_back(Eigen::Vector3d(end_effector_pose(0,3), end_effector_pose(1,3), end_effector_pose(2,3)));
+
+        filter_it++;    // Jump the deformed end-effector
+        Eigen::Matrix4d deformed_ee_pose = _deformed_end_effector_filter->getPose();
+        centroids.push_back(Eigen::Vector3d(deformed_ee_pose(0,3), deformed_ee_pose(1,3), deformed_ee_pose(2,3)));
+
+        filter_it++;    // Jump the interacted_rb_flter
+        Eigen::Matrix4d interacted_body_pose = _interacted_rb_filter->getPose();
+        centroids.push_back(Eigen::Vector3d(interacted_body_pose(0,3), interacted_body_pose(1,3), interacted_body_pose(2,3)));
+    }
+
+    for (; filter_it != this->_output_kalman_filters.end(); filter_it++)
     {
         //NEW: the first time we send as centroid the centroid we used for the trajectory estimation
         //In this way we can inform the next level of the initial pose of the rigid body
@@ -772,14 +1050,15 @@ void MultiRBTracker::addPredictedState(const rbt_state_t& predicted_state, const
 {    
     BOOST_FOREACH(omip_msgs::RigidBodyPoseAndVelMsg predicted_pose_and_vel, predicted_state.rb_poses_and_vels)
     {
-        BOOST_FOREACH(RBFilter::Ptr filter, this->_kalman_filters)
-        {
-            if (filter->getId() == predicted_pose_and_vel.rb_id)
+        BOOST_FOREACH(RBFilter::Ptr filter, this->_output_kalman_filters)
             {
-                //ROS_WARN_STREAM_NAMED("MultiRBTracker.addPredictedState", "Prediction for body " << predicted_pose_and_vel.rb_id);
-                filter->setPredictedState(predicted_pose_and_vel);
+                if (filter->getId() == predicted_pose_and_vel.rb_id)
+                {
+                    ROS_WARN_STREAM_NAMED("MultiRBTracker.addPredictedState", "Prediction for body " << predicted_pose_and_vel.rb_id << " wrt body " << predicted_pose_and_vel.ref_rb_id);
+                    filter->setPredictedState(predicted_pose_and_vel);
+                }
             }
-        }
+
     }
 }
 

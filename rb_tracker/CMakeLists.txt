@@ -55,9 +55,13 @@ FILE(GLOB source_lib_files RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
         "include/rb_tracker/RBFilter.h"
         "include/rb_tracker/StaticEnvironmentFilter.h"
         "include/rb_tracker/MultiRBTracker.h"
+        "include/rb_tracker/EndEffectorFilter.h"
+        "include/rb_tracker/RBFilterCentralizedIntegrator.h"
 	"src/RBFilter.cpp" 
         "src/StaticEnvironmentFilter.cpp"
         "src/MultiRBTracker.cpp"
+        "src/EndEffectorFilter.cpp"
+        "src/RBFilterCentralizedIntegrator.cpp"
 )
 	
 FILE(GLOB source_node_files RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
