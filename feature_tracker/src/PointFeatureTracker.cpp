@@ -18,6 +18,12 @@
 
 #include <pcl_conversions/pcl_conversions.h>
 
+#include <std_msgs/Float64.h>
+
+//TODO: make them parameters
+#define DIFF_MEAN_SAT_TH 10
+#define DIFF_MEAN_VAL_TH 10
+
 #if ROS_VERSION_MINIMUM(1, 11, 1) // if current ros version is >= 1.10.1 (hydro)
 #else
 #include "feature_tracker/pcl_conversions_indigo.h"
@@ -60,7 +66,13 @@ PointFeatureTracker::PointFeatureTracker(double loop_period_ns, bool using_pc, s
     _use_motion_mask(false),
     _min_feat_quality(0.001),
     _predicted_state_rcvd_time_ns(0),
-    _so_positive(false)
+    _so_positive(false),
+    _min_sensor_noise_x(0.0), _min_sensor_noise_y(0.0), _min_sensor_noise_z(0.0),
+    _sensor_noise_model_a(0.0), _sensor_noise_model_b(0.0), _sensor_noise_model_c(0.0),
+    _color_uncertainty(1),
+    _previous_mean_val(-1),_current_mean_val(-1),
+    _previous_mean_sat(-1),_current_mean_sat(-1),
+    _color_uncertainty_decay(0)
 {
     this->_ReadParameters();
     this->_InitializeVariables();
@@ -107,10 +119,7 @@ void PointFeatureTracker::predictMeasurement()
         // Initialize variables
         this->_received_prediction_ids.clear();
         this->_predicted_feats_msk_mat = cv::Scalar(0);
-        Eigen::Vector4d predicted_feat_3d_eigen = Eigen::Vector4d(0., 0., 0., 1.);
-        Eigen::Vector3d predicted_feat_2d_eigen = Eigen::Vector3d(0., 0., 0.);
         cv::Point predicted_feat_2d_cv_int = cvPoint(0, 0);
-        cv::Point2f predicted_feat_2d_cv_f = cvPoint2D32f(0.f, 0.f);
         double predicted_distance_to_sensor = 0.;
         int correction_search_area_radius = 0;
 
@@ -123,26 +132,19 @@ void PointFeatureTracker::predictMeasurement()
             if (predicted_feat_idx < this->_number_of_features)
             {
                 this->_received_prediction_ids.push_back(predicted_feat_3d_pcl.label);
-                // Convert the predicted feature from PCL point into Eigen vector homogeneous coordinates
-                predicted_feat_3d_eigen.x() = predicted_feat_3d_pcl.x;
-                predicted_feat_3d_eigen.y() = predicted_feat_3d_pcl.y;
-                predicted_feat_3d_eigen.z() = predicted_feat_3d_pcl.z;
 
                 // Estimate the distance of the predicted feature to the sensor
                 predicted_distance_to_sensor = sqrt(predicted_feat_3d_pcl.x * predicted_feat_3d_pcl.x +
                                                     predicted_feat_3d_pcl.y * predicted_feat_3d_pcl.y +
                                                     predicted_feat_3d_pcl.z * predicted_feat_3d_pcl.z);
 
-                // Project the predicted feature from 3D space into the image plane
-                predicted_feat_2d_eigen = this->_image_plane_proj_mat_eigen * predicted_feat_3d_eigen;
-
-                // Convert the predicted feature from image coordinates to pixel coordinates
-                predicted_feat_2d_cv_f.x = predicted_feat_2d_eigen.x() / predicted_feat_2d_eigen.z();
-                predicted_feat_2d_cv_f.y = predicted_feat_2d_eigen.y() / predicted_feat_2d_eigen.z();
+                // Estimate 2D projection of the predicted 3D locations
+                double uu = (predicted_feat_3d_pcl.x/predicted_feat_3d_pcl.z)*this->_camera_info_ptr->K[0] + this->_camera_info_ptr->K[2];
+                double vv = (predicted_feat_3d_pcl.y/predicted_feat_3d_pcl.z)*this->_camera_info_ptr->K[4] + this->_camera_info_ptr->K[5];
 
                 // Estimate the pixel (round the float pixel coordinates to the closest integer value)
-                predicted_feat_2d_cv_int.x = cvRound(predicted_feat_2d_cv_f.x);
-                predicted_feat_2d_cv_int.y = cvRound(predicted_feat_2d_cv_f.y);
+                predicted_feat_2d_cv_int.x = cvRound(uu);
+                predicted_feat_2d_cv_int.y = cvRound(vv);
 
                 // If the predicted feature is inside the image limits
                 // 1: We store this feature as prediction to help the tracker (it will use this locations as starting point)
@@ -168,6 +170,13 @@ void PointFeatureTracker::predictMeasurement()
             }
         }
     }
+}
+
+// See http://www.cogsys.cs.uni-tuebingen.de/publikationen/2014/rauscher2014ias.pdf
+// and Khoshelham et al -> sigma(depth) = a + bdepth+ cdepth^2  propose a=b=0 and c = 2.58 mm/m^2
+double estimateCovarianceKinectPixel(const double& depth, const double& a, const double& b, const double& c)
+{
+    return (a + depth*b + depth*depth*c);
 }
 
 void PointFeatureTracker::correctState()
@@ -196,6 +205,7 @@ void PointFeatureTracker::correctState()
     this->_previous_bw_img_ptr = this->_current_bw_img_ptr;
     this->_previous_belief_state = this->_corrected_belief_state;
 
+    double sensor_depth_noise = 0;
     for (size_t num_feats = 0; num_feats < this->_number_of_features; num_feats++)
     {
         this->_state->points[num_feats].label = this->_current_feat_ids_v[num_feats];
@@ -204,7 +214,13 @@ void PointFeatureTracker::correctState()
         this->_state->points[num_feats].z = this->_corrected_belief_state[num_feats].z;
 
         // Covariance
-        //
+        sensor_depth_noise = estimateCovarianceKinectPixel(this->_state->points[num_feats].z, _sensor_noise_model_a, _sensor_noise_model_b, _sensor_noise_model_c);
+        // xx
+        this->_state->points[num_feats].covariance[0] =  _color_uncertainty*std::max(this->_min_sensor_noise_x, sensor_depth_noise);
+        // yy
+        this->_state->points[num_feats].covariance[4] =  _color_uncertainty*std::max(this->_min_sensor_noise_y, sensor_depth_noise);
+        // zz
+        this->_state->points[num_feats].covariance[8] =  _color_uncertainty*std::max(this->_min_sensor_noise_z, sensor_depth_noise);
     }
     this->_frame_counter++;
 }
@@ -241,7 +257,7 @@ void PointFeatureTracker::_ProcessDepthImg()
     cv::Point minpt,maxpt;
 
 #if(CV_MAJOR_VERSION == 2)
-        if(this->_depth_img_ptr->encoding == "32FC1")
+    if(this->_depth_img_ptr->encoding == "32FC1")
     {
         float infinity = std::numeric_limits<float>::infinity();
         cv::minMaxLoc(this->_depth_img_ptr->image, &minVal, &maxVal, &minpt, &maxpt, this->_depth_img_ptr->image != infinity);
@@ -369,11 +385,78 @@ void PointFeatureTracker::_ProcessDepthImg()
     }
 }
 
+void PointFeatureTracker::_estimateColorUncertainty()
+{
+    _previous_mean_val = _current_mean_val;
+    _previous_mean_sat = _current_mean_sat;
+
+    // Downsample image
+    if(this->_rgb_img_ptr->image.cols)
+    {
+
+    cv::resize(this->_rgb_img_ptr->image, _downsampled_bgr, cv::Size(), 0.1, 0.1);
+
+    // Convert received bgr image into hsv
+    cv::cvtColor(_downsampled_bgr, _hsv_current_img, CV_BGR2HSV);
+
+    //computes mean over roi
+    cv::Scalar mean_hsv = cv::mean(_hsv_current_img);
+
+    _current_mean_val = mean_hsv[2];
+    _current_mean_sat = mean_hsv[1];
+
+    //These are the initial values
+    if(_previous_mean_val != -1 && _previous_mean_sat != -1)
+    {
+        double diff_mean_sat = _previous_mean_sat - _current_mean_sat;
+        double diff_mean_val = _previous_mean_val - _current_mean_val;
+
+        // Empirically found
+        // Abrupt change or complete darkness or complete light
+        if ((fabs(diff_mean_sat) > DIFF_MEAN_SAT_TH && abs(diff_mean_val) > DIFF_MEAN_VAL_TH) || _current_mean_val < 30 || _current_mean_val > 200)
+        {
+            _color_uncertainty = 1000;
+            _color_uncertainty_decay = 15;
+        }else if(_color_uncertainty_decay > 0)
+        {
+            _color_uncertainty = 1000;
+            _color_uncertainty_decay--;
+        }else{
+            _color_uncertainty = 1;
+        }
+
+        static ros::Publisher dms_pub = _node_handle.advertise<std_msgs::Float64>("/feat_tracker/diff_mean_sat",10);
+        static ros::Publisher dmv_pub = _node_handle.advertise<std_msgs::Float64>("/feat_tracker/diff_mean_val",10);
+        static ros::Publisher ms_pub = _node_handle.advertise<std_msgs::Float64>("/feat_tracker/mean_sat",10);
+        static ros::Publisher mv_pub = _node_handle.advertise<std_msgs::Float64>("/feat_tracker/mean_val",10);
+        static ros::Publisher cu = _node_handle.advertise<std_msgs::Float64>("/feat_tracker/color_uncertainty",10);
+
+        std_msgs::Float64 value;
+        value.data = diff_mean_sat;
+        dms_pub.publish(value);
+
+        value.data = diff_mean_val;
+        dmv_pub.publish(value);
+
+        value.data = _current_mean_sat;
+        ms_pub.publish(value);
+
+        value.data = _current_mean_val;
+        mv_pub.publish(value);
+
+        value.data = _color_uncertainty;
+        cu.publish(value);
+    }
+    }
+}
+
 void PointFeatureTracker::_ProcessRGBImg()
 {
     this->_rgb_img_ptr = this->_measurement.first;
     this->_current_bw_img_ptr = cv_bridge::cvtColor(this->_rgb_img_ptr, "mono8");
     _measurement_timestamp_ns = (double)this->_rgb_img_ptr->header.stamp.toNSec();
+
+    this->_estimateColorUncertainty();
 }
 
 void PointFeatureTracker::_ProcessOcclusionMaskImg()
@@ -397,19 +480,6 @@ void PointFeatureTracker::setCameraInfoMsg(const sensor_msgs::CameraInfo* camera
         ROS_ERROR_STREAM_NAMED("PointFeatureTracker.setCameraInfoMsg", "Resizing predicted features mask!");
         this->_predicted_feats_msk_mat = cv::Mat::zeros(this->_camera_info_ptr->height, this->_camera_info_ptr->width, CV_8U);
     }
-
-    this->_image_plane_proj_mat_eigen(0, 0) = this->_camera_info_ptr->P[0]; // For carmine + 32;
-    this->_image_plane_proj_mat_eigen(0, 1) = this->_camera_info_ptr->P[1];
-    this->_image_plane_proj_mat_eigen(0, 2) = this->_camera_info_ptr->P[2];
-    this->_image_plane_proj_mat_eigen(0, 3) = this->_camera_info_ptr->P[3];
-    this->_image_plane_proj_mat_eigen(1, 0) = this->_camera_info_ptr->P[4];
-    this->_image_plane_proj_mat_eigen(1, 1) = this->_camera_info_ptr->P[5]; // For carmine + 32;
-    this->_image_plane_proj_mat_eigen(1, 2) = this->_camera_info_ptr->P[6];
-    this->_image_plane_proj_mat_eigen(1, 3) = this->_camera_info_ptr->P[7];
-    this->_image_plane_proj_mat_eigen(2, 0) = this->_camera_info_ptr->P[8];
-    this->_image_plane_proj_mat_eigen(2, 1) = this->_camera_info_ptr->P[9];
-    this->_image_plane_proj_mat_eigen(2, 2) = this->_camera_info_ptr->P[10];
-    this->_image_plane_proj_mat_eigen(2, 3) = this->_camera_info_ptr->P[11];
     this->_camera_info_msg_rcvd = true;
 }
 
@@ -575,6 +645,14 @@ void PointFeatureTracker::_ReadParameters()
     this->_node_handle.getParam(this->_ft_ns + std::string("/min_depth_difference"),this->_min_depth_difference);
     this->_node_handle.getParam(this->_ft_ns + std::string("/min_area_size_pixels"),this->_min_area_size_pixels);
 
+    this->_node_handle.getParam(this->_ft_ns + std::string("/min_cov_x"), _min_sensor_noise_x);
+    this->_node_handle.getParam(this->_ft_ns + std::string("/min_cov_y"), _min_sensor_noise_y);
+    this->_node_handle.getParam(this->_ft_ns + std::string("/min_cov_z"), _min_sensor_noise_z);
+
+    this->_node_handle.getParam(this->_ft_ns + std::string("/sensor_noise_model_a"), _sensor_noise_model_a);
+    this->_node_handle.getParam(this->_ft_ns + std::string("/sensor_noise_model_b"), _sensor_noise_model_b);
+    this->_node_handle.getParam(this->_ft_ns + std::string("/sensor_noise_model_c"), _sensor_noise_model_c);
+
     ROS_INFO_STREAM_NAMED(
                 "PointFeatureTracker::ReadParameters",
                 "PointFeatureTracker Parameters: " << std::endl <<
@@ -593,14 +671,15 @@ void PointFeatureTracker::_ReadParameters()
                 "\tMinimum area size to use the attention mechanism: " << this->_min_area_size_pixels << std::endl <<
                 "\tPublishing image of the tracked feats: " << this->_publishing_tracked_feats_img << std::endl <<
                 "\tPublishing image of the tracked feats with prediction mask: " << this->_publishing_tracked_feats_with_pred_msk_img << std::endl <<
-                "\tPublishing image of the predicted and the past features: " << this->_publishing_predicted_and_past_feats_img);
+                "\tPublishing image of the predicted and the past features: " << this->_publishing_predicted_and_past_feats_img << std::endl <<
+                "\tMinimum feat covariance: (" << _min_sensor_noise_x << ", " << _min_sensor_noise_y << ", " << _min_sensor_noise_z << ")" << std::endl <<
+                "\tNoise model for depth (a+bd+cd^2): a=" << _sensor_noise_model_a << ", b=" << _sensor_noise_model_b << ", c=" << _sensor_noise_model_c );
 }
 
 void PointFeatureTracker::_InitializeVariables()
 {
     this->_filter_name = "FTFilter";
     this->_camera_info_ptr = sensor_msgs::CameraInfo::Ptr(new sensor_msgs::CameraInfo());
-    this->_image_plane_proj_mat_eigen = Eigen::Matrix<double, 3, 4>::Zero();
     this->_erosion_element_detecting_mat = cv::getStructuringElement(cv::MORPH_RECT,
                                                                      cv::Size(2 * this->_erosion_size_detecting + 1,
                                                                               2 * this->_erosion_size_detecting + 1),
@@ -685,9 +764,9 @@ void PointFeatureTracker::_DetectNewFeatures()
         // DETECTION /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         cv::goodFeaturesToTrack(this->_current_bw_img_ptr->image, new_features, num_new_features_to_detect, min_feat_quality, min_distance, this->_feats_detection_msk_mat);
 
-       // cv::imshow("a", this->_current_bw_img_ptr->image);
-       // cv::imshow("b", this->_feats_detection_msk_mat);
-       // cv::waitKey(-1);
+        // cv::imshow("a", this->_current_bw_img_ptr->image);
+        // cv::imshow("b", this->_feats_detection_msk_mat);
+        // cv::waitKey(-1);
 
         std::vector<bool> new_feats_status;
         new_feats_status.resize(num_new_features_to_detect, true);
@@ -725,27 +804,8 @@ void PointFeatureTracker::_DetectNewFeatures()
 
 void PointFeatureTracker::_TrackFeatures()
 {
-    std::vector<std::vector<uchar> > feat_tracked;
-    feat_tracked.resize(2);
-
+    std::vector<uchar> feat_tracked;
     _feat_quality.clear();
-    _feat_quality.resize(2);
-
-    // Track using the previous locations
-    cv::calcOpticalFlowPyrLK(
-                this->_previous_bw_img_ptr->image,
-                this->_current_bw_img_ptr->image,
-                this->_previous_measurement,
-                this->_predicted_measurements[0],
-            feat_tracked[0],
-            _feat_quality[0],
-            cv::Size(7, 7),
-            1,
-            cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS,
-                             30,
-                             0.01),
-            cv::OPTFLOW_USE_INITIAL_FLOW + cv::OPTFLOW_LK_GET_MIN_EIGENVALS,
-            _min_feat_quality/2.0);
 
     int num_lost_features_tracking = 0;
 
@@ -754,24 +814,47 @@ void PointFeatureTracker::_TrackFeatures()
     std::vector<bool> using_predicted_location;
     using_predicted_location.resize(this->_number_of_features, false);
     double time_since_last_prediction = this->_measurement_timestamp_ns - _predicted_state_rcvd_time_ns;
-    if(true && time_since_last_prediction < this->_loop_period_ns/2.0)
+    if(time_since_last_prediction < this->_loop_period_ns/2.0)
     {
         received_useful_prediction = true;
-        // Track using the predictions
+
+        // Track using the both previous and predictions from higher level locations (only one call)
+        // First we create a vector that contains 2 times the past locations
+        _combined_previous.clear();
+        _combined_previous.reserve( _previous_measurement.size() + _previous_measurement.size() );
+        _combined_previous.insert( _combined_previous.end(), _previous_measurement.begin(), _previous_measurement.end() );
+        _combined_previous.insert( _combined_previous.end(), _previous_measurement.begin(), _previous_measurement.end() );
+
+        // Then we create a vector that combines the predictions from past locations and higher level
+        _combined_predictions.clear();
+        _combined_predictions.reserve( this->_predicted_measurements[0].size() + this->_predicted_measurements[1].size() );
+        _combined_predictions.insert( _combined_predictions.end(), this->_predicted_measurements[0].begin(), this->_predicted_measurements[0].end() );
+        _combined_predictions.insert( _combined_predictions.end(), this->_predicted_measurements[1].begin(), this->_predicted_measurements[1].end() );
+
+        // Then track
         cv::calcOpticalFlowPyrLK(
                     this->_previous_bw_img_ptr->image,
                     this->_current_bw_img_ptr->image,
-                    this->_previous_measurement,
-                    this->_predicted_measurements[1],
-                feat_tracked[1],
-                _feat_quality[1],
-                cv::Size(7, 7),
-                1,
-                cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS,
-                                 30,
-                                 0.01),
-                cv::OPTFLOW_USE_INITIAL_FLOW + cv::OPTFLOW_LK_GET_MIN_EIGENVALS,
-                _min_feat_quality/2.0);
+                    _combined_previous,
+                    _combined_predictions,
+                    feat_tracked,
+                    _feat_quality,
+                    cv::Size(7, 7),
+                    1,
+                    cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS,
+                                     30,
+                                     0.01),
+                    cv::OPTFLOW_USE_INITIAL_FLOW + cv::OPTFLOW_LK_GET_MIN_EIGENVALS,
+                    _min_feat_quality/2.0);
+
+        // We separate the tracked features into the two vectors
+        this->_predicted_measurements[0].clear();
+        this->_predicted_measurements[0].reserve(_combined_predictions.size()/2);
+        this->_predicted_measurements[0].insert(this->_predicted_measurements[0].end(),_combined_predictions.begin(), _combined_predictions.begin() +  _combined_predictions.size()/2);
+
+        this->_predicted_measurements[1].clear();
+        this->_predicted_measurements[1].reserve(_combined_predictions.size()/2);
+        this->_predicted_measurements[1].insert(this->_predicted_measurements[1].end(),_combined_predictions.begin()  +  _combined_predictions.size()/2, _combined_predictions.end());
 
         // Select the tracked location with lower error
         int using_pred = 0;
@@ -779,24 +862,27 @@ void PointFeatureTracker::_TrackFeatures()
         for (size_t feat_idx = 0; feat_idx < this->_number_of_features; feat_idx++)
         {
             // Both trackers found the point -> Select the one with lower error
-            if (feat_tracked[0][feat_idx] && feat_tracked[1][feat_idx])
+            if (feat_tracked[feat_idx] && feat_tracked[_combined_predictions.size()/2+feat_idx])
             {
+                // Careful!!!! The quality contains the min eigen value -> the smaller the min eig value, the less quality the feature has
+                // We want to use the feature with the largest min eigenvalue
                 this->_corrected_measurement[feat_idx] =
-                        (_feat_quality[1][feat_idx] <= _feat_quality[0][feat_idx] ? this->_predicted_measurements[1][feat_idx] : this->_predicted_measurements[0][feat_idx]);
+                        (_feat_quality[feat_idx] >= _feat_quality[_combined_predictions.size()/2+feat_idx] ?
+                            this->_predicted_measurements[0][feat_idx] : this->_predicted_measurements[1][feat_idx]);
 
                 // Count the tracked point used
-                _feat_quality[1][feat_idx] <= _feat_quality[0][feat_idx] ? using_pred++ : using_prev++;
+                _feat_quality[feat_idx] >= _feat_quality[_combined_predictions.size()/2+feat_idx] ? using_prev++ : using_pred++;
+            }
+            // Only the tracker with previous could track it
+            else if (feat_tracked[feat_idx])
+            {
+                this->_corrected_measurement[feat_idx] = this->_predicted_measurements[0][feat_idx];
             }
             // Only the tracker with predictions could track it
-            else if (feat_tracked[1][feat_idx])
+            else if (feat_tracked[_combined_predictions.size()/2+feat_idx])
             {
                 this->_corrected_measurement[feat_idx] = this->_predicted_measurements[1][feat_idx];
                 using_predicted_location[feat_idx] = true;
-            }
-            // Only the tracker with previous could track it
-            else if (feat_tracked[0][feat_idx])
-            {
-                this->_corrected_measurement[feat_idx] = this->_predicted_measurements[0][feat_idx];
             }
             // Both lost the feature
             else
@@ -806,16 +892,33 @@ void PointFeatureTracker::_TrackFeatures()
                 num_lost_features_tracking++;
             }
         }
-        ROS_INFO_STREAM_NAMED("PointFeatureTracker._TrackFeatures","Using " << using_pred << " predicted and " << using_prev << " previous Locations.");
+        ROS_INFO_STREAM_NAMED("PointFeatureTracker._TrackFeatures","Using " << using_pred << " predicted and " << using_prev << " previous locations.");
     }else{
 
         ROS_ERROR_STREAM_NAMED("PointFeatureTracker.measurementCallback",
                                "The prediction from higher level can NOT be used to predict next measurement before correction. Delay: "
                                << (double)(time_since_last_prediction)/1e9);
+
+        // Track only using previous locations
+        cv::calcOpticalFlowPyrLK(
+                    this->_previous_bw_img_ptr->image,
+                    this->_current_bw_img_ptr->image,
+                    this->_previous_measurement,
+                    this->_predicted_measurements[0],
+                feat_tracked,
+                _feat_quality,
+                cv::Size(7, 7),
+                1,
+                cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS,
+                                 30,
+                                 0.01),
+                cv::OPTFLOW_USE_INITIAL_FLOW + cv::OPTFLOW_LK_GET_MIN_EIGENVALS,
+                _min_feat_quality/2.0);
+
         for (size_t feat_idx = 0; feat_idx < this->_number_of_features; feat_idx++)
         {
             // If the tracker with previous could track it
-            if (feat_tracked[0][feat_idx])
+            if (feat_tracked[feat_idx])
             {
                 this->_corrected_measurement[feat_idx] = this->_predicted_measurements[0][feat_idx];
             }

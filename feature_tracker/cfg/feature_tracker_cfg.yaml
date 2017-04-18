@@ -16,7 +16,7 @@ depth_img_topic: /camera/depth_registered/hw_registered/image_rect_raw
 # Self-occlusion filter image topic
 selfocclusionfilter_img_topic: selfocclusion_img
 # True if the region occluded by the robot is white (rviz plugin). False if it is black (old variant and rosbags)
-selfocclusionfilter_positive: false
+selfocclusionfilter_positive: true
 
 # Number of feature points to track
 number_features: 200
@@ -39,6 +39,16 @@ max_interframe_jump: 0.04
 
 erosion_size_detect: 2
 erosion_size_track: 1
+
+# Minimum feature covariance
+min_cov_x: 0.03
+min_cov_y: 0.03
+min_cov_z: 0.03
+
+# Parameters of the sensor noise model
+sensor_noise_model_a: 0
+sensor_noise_model_b: 0
+sensor_noise_model_c: 0.00258
 
 # BETA!
 # Focus the detection of new features in the areas where the depth changes (motion)

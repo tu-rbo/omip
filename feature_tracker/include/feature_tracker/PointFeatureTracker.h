@@ -242,6 +242,11 @@ protected:
     void _ProcessPredictedLocationsPC();
 
     /**
+     * @brief _estimateColorUncertainty Estimates the uncertainty of the color channel (and the tracker)
+     */
+    void _estimateColorUncertainty();
+
+    /**
    * Retrieve the 3D coordinates of a set of 2D Features
    * @param points_in_2d - 2D locations of the Features in image plane
    * @param points_ids - ID of the Features
@@ -274,11 +279,13 @@ protected:
     cv_bridge::CvImagePtr _tracking_mask_img, _detecting_mask_img, _predicted_and_previous_features_img;
     cv::Mat _predicted_feats_msk_mat, _depth_mat, _canny_edges_mat, _feats_detection_msk_mat, _feats_tracking_msk_mat;
     cv::Mat _erosion_element_detecting_mat, _erosion_element_tracking_mat, _occlusion_msk_mat, _aux1_mat, _previous_depth_mat, _depth_difference_mask;
-
-    Eigen::Matrix<double, 3, 4> _image_plane_proj_mat_eigen;
+    cv::Mat _hsv_current_img, _downsampled_bgr;
+    double _current_mean_sat, _previous_mean_sat;
+    double _current_mean_val, _previous_mean_val;
+    int _color_uncertainty_decay;
 
     std::vector<std::vector<cv::Point2f> >  _predicted_measurements;
-    std::vector<cv::Point2f> _previous_measurement, _corrected_measurement;
+    std::vector<cv::Point2f> _previous_measurement, _corrected_measurement, _combined_previous, _combined_predictions;
     std::vector<cv::Point3d> _previous_belief_state, _corrected_belief_state;
     std::vector<bool> _feat_status_v;
     std::vector<int> _previous_feat_ids_v, _current_feat_ids_v;
@@ -300,11 +307,15 @@ protected:
     Feature::Id _feature_id_counter;
     std::string _ft_ns;
 
-    std::vector<std::vector<float> > _feat_quality;
+    std::vector<float> _feat_quality;
 
     std::ofstream _features_file;
 
     bool _so_positive;
+
+    double _min_sensor_noise_x, _min_sensor_noise_y, _min_sensor_noise_z;
+    double _sensor_noise_model_a, _sensor_noise_model_b, _sensor_noise_model_c;
+    double _color_uncertainty;
 };
 }
 
