@@ -1,5 +1,13 @@
 # Online Multimodal Interactive Perception - OMIP
 
+### About this branch
+
+The branch **wip_integrate_proprio_and_ft** includes our latest attempts to integrate additional sources of information (proprioception) into the online estimation problem. We are currently developing this branch and it is **highly experimental**. In a nutshell, in this branch we incorporate proprioception signals: measurements about the pose of robots end-effector from robot's encoders + forward kinematics, and force-torque signals to estimate the deviation from the nominal grasping point of our soft-hand manipulator due to **deformation**. 
+
+There is a new running option to execute the estimation process **only** from proprioception information. To launch that, use the option ```--omip=5``` when launching the system.
+
+If you try this code and have feedback, we are happy to hear it!
+
 ### Authors and contact
 
 (Main author) Roberto Martín-Martin (roberto.martinmartin@tu-berlin.de, rmartinmar@gmail.com)
