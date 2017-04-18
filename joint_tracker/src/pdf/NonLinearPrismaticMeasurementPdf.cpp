@@ -5,7 +5,7 @@
 using namespace BFL;
 
 #define PRISM_PDF_DIM 6
-#define PRISM_CONDITIONAL_VAR_DIM 4
+#define PRISM_CONDITIONAL_VAR_DIM 5
 #define PRISM_NUM_CONDITIONAL_ARGS 2
 
 NonLinearPrismaticMeasurementPdf::NonLinearPrismaticMeasurementPdf(const Gaussian& additiveNoise) :
@@ -24,14 +24,15 @@ MatrixWrapper::ColumnVector NonLinearPrismaticMeasurementPdf::ExpectedValueGet()
 {
     ColumnVector state = ConditionalArgumentGet(0);
 
-    double phi = state(1);
-    double theta = state(2);
-    double pv = state(3);
+    double x = state(1);
+    double y = state(2);
+    double z = state(3);
+    double pv = state(4);
 
     ColumnVector expected_pose(PRISM_PDF_DIM);
-    expected_pose(1) = pv * cos(phi) * sin(theta);
-    expected_pose(2) = pv * sin(phi) * sin(theta);
-    expected_pose(3) = pv * cos(theta);
+    expected_pose(1) = pv * x;
+    expected_pose(2) = pv * y;
+    expected_pose(3) = pv * z;
     expected_pose(4) = 0.;
     expected_pose(5) = 0.;
     expected_pose(6) = 0.;
@@ -43,19 +44,27 @@ MatrixWrapper::Matrix NonLinearPrismaticMeasurementPdf::dfGet(unsigned int i) co
 {
     if (i == 0) //derivative to the first conditional argument (x)
     {
-        double phi = ConditionalArgumentGet(0)(1);
-        double theta = ConditionalArgumentGet(0)(2);
-        double pv = ConditionalArgumentGet(0)(3);
+        double x = ConditionalArgumentGet(0)(1);
+        double y = ConditionalArgumentGet(0)(2);
+        double z = ConditionalArgumentGet(0)(3);
+        double pv = ConditionalArgumentGet(0)(4);
 
         dfx = 0;
-        dfx(1, 1) = -pv*sin(theta)*sin(phi);
-        dfx(2, 1) = pv*sin(theta)*cos(phi);
-        dfx(1, 2) = pv*cos(theta)*cos(phi);
-        dfx(2, 2) = pv*cos(theta)*sin(phi);
-        dfx(3, 2) = -pv*sin(theta);
-        dfx(1, 3) = sin(theta)*cos(phi);
-        dfx(2, 3) = sin(theta)*sin(phi);
-        dfx(3, 3) = cos(theta);
+        dfx(1, 1) = pv; //dh/d(x)
+        dfx(1, 2) = 0; //d/d(y)
+        dfx(1, 3) = 0; //d/d(z)
+        dfx(1, 4) = x; //d/d(pv)
+
+        dfx(2, 1) = 0; //dh/d(x)
+        dfx(2, 2) = pv; //d/d(y)
+        dfx(2, 3) = 0; //d/d(z)
+        dfx(2, 4) = y; //d/d(pv)
+
+        dfx(3, 1) = 0; //dh/d(x)
+        dfx(3, 2) = 0; //d/d(y)
+        dfx(3, 3) = pv; //d/d(z)
+        dfx(3, 4) = z; //d/d(pv)
+
         return dfx;
     }
     else

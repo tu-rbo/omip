@@ -61,6 +61,12 @@ Projectname = {Interactive Perception}
 #define JOINT_AXIS_AND_VARIABLE_MARKER_RADIUS 0.02
 #define JOINT_VALUE_TEXT_SIZE 0.1
 
+//TODO: make them parameters
+#define MAX_DECAY_FORCE 5.0
+#define SIGMA_DECAY_FORCE 0.5
+#define MIN_ACTUATING_FORCE 5.0
+#define SIGMA_ACTUATING_FORCE 0.8
+
 //#define PUBLISH_PREDICTED_POSE_AS_PWC 1
 
 namespace omip
@@ -73,7 +79,11 @@ enum JointFilterType
     RIGID_JOINT,
     PRISMATIC_JOINT,
     REVOLUTE_JOINT,
-    DISCONNECTED_JOINT
+    DISCONNECTED_JOINT,
+    PERFECT_GRASP_JOINT,
+    UNCONSTRAINED_RY_GRASP_JOINT,
+    UNCONSTRAINED_RY_TY_GRASP_JOINT,
+    CONTACT_POINT_JOINT
 };
 
 class JointFilter;
@@ -139,6 +149,11 @@ public:
    * @param acquired_measurement Latest acquired measurement
    */
     virtual void setMeasurement(joint_measurement_t acquired_measurement, const double& measurement_timestamp_ns);
+    virtual void setMeasurementFT(const std::vector<double>& ft_meas, const double& measurement_timestamp_ns)
+    {
+        this->_previous_ft_meas = _ft_meas;
+        this->_ft_meas =  ft_meas;
+    }
 
     virtual void setInitialMeasurement(const joint_measurement_t &initial_measurement,
                                        const Eigen::Twistd& rrb_pose_at_srb_birth_in_sf,
@@ -161,10 +176,22 @@ public:
     virtual void estimateUnnormalizedModelProbability() {}
 
     /**
+   * @brief Generate a prediction about the pose-twist of the second rigid body (SRB) and its covariance using the frame of reference rigid body (RRB) as observation and ref frame
+   * based on the predicted measurement
+   */
+    virtual geometry_msgs::TwistWithCovariance getPredictedSRBPoseWithCovInRRBFrame();
+
+    /**
+   * @brief Generate a prediction about the change in pose of the second rigid body (SRB) and its covariance using the frame of reference rigid body (RRB) as observation and ref frame
+   * based on the predicted measurement
+   */
+    virtual geometry_msgs::TwistWithCovariance getPredictedSRBDeltaPoseWithCovInRRBFrame();
+
+    /**
    * @brief Generate a prediction about the pose-twist of the second rigid body (SRB) and its covariance using the frame of sensor (SF) as observation and ref frame
    * based on the predicted measurement and the predicted next pose of the reference rigid body (RRB) in the sensor frame (SF)
    */
-    virtual geometry_msgs::TwistWithCovariance getPredictedSRBPoseWithCovInSensorFrame() = 0;
+    virtual geometry_msgs::TwistWithCovariance getPredictedSRBPoseWithCovInSensorFrame();
 
     /**
    * @brief Generate a prediction about the change in pose of the second rigid body (SRB) and its covariance using the frame of sensor (SF) as observation and ref frame
@@ -172,7 +199,7 @@ public:
    *
    * @return geometry_msgs::TwistWithCovariance Change in pose of the second rigid body in form of a twist with covariance based on the model uncertainty
    */
-    virtual geometry_msgs::TwistWithCovariance getPredictedSRBDeltaPoseWithCovInSensorFrame() =0;
+    virtual geometry_msgs::TwistWithCovariance getPredictedSRBDeltaPoseWithCovInSensorFrame();
 
     /**
    * @brief Generate a prediction about the velocity of the second rigid body (SRB) and its covariance using the frame of sensor (SF) as observation and ref frame
@@ -180,7 +207,7 @@ public:
    *
    * @return geometry_msgs::TwistWithCovariance Velocity of the second rigid body in form of a twist with covariance based on the model uncertainty
    */
-    virtual geometry_msgs::TwistWithCovariance getPredictedSRBVelocityWithCovInSensorFrame() =0;
+    virtual geometry_msgs::TwistWithCovariance getPredictedSRBVelocityWithCovInSensorFrame();
 
     /**
    * @brief Set the normalizing term from the combined filter as the sum of all unnormalized probabilities
@@ -276,6 +303,8 @@ public:
 
     virtual double getCovarianceOrientationThetaThetaInRRBFrame() const;
 
+    virtual Eigen::Matrix3d getCovariancePositionXYZInRRBFrame() const;
+
     virtual double getCovarianceOrientationPhiThetaInRRBFrame() const;
 
     virtual void setLoopPeriodNS(double loop_period_ns);
@@ -293,6 +322,12 @@ public:
     virtual void setCovarianceAdditiveSystemNoisePhi(double  sigma_sys_noise_phi);
 
     virtual void setCovarianceAdditiveSystemNoiseTheta(double  sigma_sys_noise_theta);
+
+    virtual void setCovarianceAdditiveSystemNoiseOx(double  sigma_sys_noise_ox);
+
+    virtual void setCovarianceAdditiveSystemNoiseOy(double  sigma_sys_noise_oy);
+
+    virtual void setCovarianceAdditiveSystemNoiseOz(double  sigma_sys_noise_oz);
 
     virtual void setCovarianceAdditiveSystemNoisePx(double  sigma_sys_noise_px);
 
@@ -320,7 +355,14 @@ public:
    */
     virtual double getJointVelocity() const;
 
+    virtual void slippageDetected(int slippage)
+    {
+        _slippage = slippage;
+    }
+
 protected:
+
+    int _slippage;
 
     /**
    * @brief Initialize all variables of the filter
@@ -351,7 +393,7 @@ protected:
     double _unnormalized_model_probability;
 
     // Position of the joint axis
-    Eigen::Vector3d _joint_position;
+    mutable Eigen::Vector3d _joint_position;
     // Uncertainty about the position of the joint axis
     Eigen::Matrix3d _uncertainty_joint_position;
 
@@ -359,9 +401,10 @@ protected:
     double _joint_orientation_phi;
     double _joint_orientation_theta;
     // Equivalent joint orientation as unitary vector
-    Eigen::Vector3d _joint_orientation;
+    mutable Eigen::Vector3d _joint_orientation;
     // Uncertainty about the orientation of the joint axis
-    Eigen::Matrix2d _uncertainty_joint_orientation_phitheta;
+    mutable Eigen::Matrix2d _uncertainty_joint_orientation_phitheta;
+    Eigen::Matrix3d _uncertainty_joint_orientation_xyz;
 
     // Joint state (variable)
     double _joint_state;
@@ -389,6 +432,9 @@ protected:
     double _prior_cov_vel;
     double _sigma_sys_noise_phi;
     double _sigma_sys_noise_theta;
+    double _sigma_sys_noise_ox;
+    double _sigma_sys_noise_oy;
+    double _sigma_sys_noise_oz;
     double _sigma_sys_noise_px;
     double _sigma_sys_noise_py;
     double _sigma_sys_noise_pz;
@@ -414,15 +460,15 @@ protected:
     // - Reference frame
 
     // Twists relative to the sensor frame
-    Eigen::Twistd _rrb_current_pose_in_sf;
-    Eigen::Twistd _rrb_previous_pose_in_sf;
+    Eigen::Twistd _rrb_pose_in_sf;
     Eigen::Matrix<double, 6, 6> _rrb_pose_cov_in_sf;
-    Eigen::Twistd _rrb_current_vel_in_sf;
+    Eigen::Twistd _rrb_previous_pose_in_sf;
+    Eigen::Twistd _rrb_vel_in_sf;
     Eigen::Matrix<double, 6, 6> _rrb_vel_cov_in_sf;
 
-    Eigen::Twistd _srb_current_pose_in_sf;
+    Eigen::Twistd _srb_pose_in_sf;
     Eigen::Matrix<double, 6, 6> _srb_pose_cov_in_sf;
-    Eigen::Twistd _srb_current_vel_in_sf;
+    Eigen::Twistd _srb_vel_in_sf;
 
     // Twists relative to the reference rigid body frame (rrbf)
     Eigen::Twistd _srb_initial_pose_in_rrbf;
@@ -432,12 +478,14 @@ protected:
 
     Eigen::Twistd _srb_previous_pose_in_rrbf;
     Eigen::Twistd _srb_predicted_pose_in_rrbf;
+    Eigen::Matrix<double, 6, 6> _srb_predicted_pose_cov_in_rrbf;
     Eigen::Twistd _srb_previous_predicted_pose_in_rrbf;
     Eigen::Twistd _current_delta_pose_in_rrbf;
     Eigen::Matrix<double, 6, 6> _current_delta_pose_cov_in_rrbf;
     Eigen::Twistd _previous_delta_pose_in_rrbf;
-    Eigen::Twistd _predicted_delta_pose_in_rrbf;
-    std::vector<Eigen::Twistd> _delta_poses_in_rrbf;
+    Eigen::Twistd _change_in_relative_pose_predicted_in_rrbf;
+    Eigen::Matrix<double, 6, 6> _change_in_relative_pose_cov_predicted_in_rrbf;
+    std::vector<Eigen::Twistd> _changes_in_relative_pose_in_rrbf;
 
     virtual JointFilter* doClone() const = 0;
 
@@ -459,6 +507,15 @@ protected:
     bool _inverted_delta_srb_pose_in_rrbf;
     bool _from_inverted_to_non_inverted;
     bool _from_non_inverted_to_inverted;
+
+    std::vector<double> _ft_meas;
+
+    void _estimateFTMeasurementLikelihood();
+
+    std::vector<double> _previous_ft_meas;
+    Eigen::Vector3d _previous_ft_running_avg;
+    Eigen::Vector3d _max_ft_meas;
+    double _current_prob_grasp_failure;
 };
 
 }

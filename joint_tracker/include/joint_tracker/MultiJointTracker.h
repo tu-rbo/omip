@@ -43,6 +43,12 @@ Projectname = {Interactive Perception}
 
 #include "omip_common/RecursiveEstimatorFilterInterface.h"
 
+#include <std_msgs/Int32.h>
+
+#define MULTIMODAL_EE_FILTER_ID 3
+#define DEFORMED_END_EFFECTOR_FILTER_ID 4
+#define INTERACTED_RB_FILTER_ID 5
+
 namespace omip
 {
 
@@ -61,228 +67,247 @@ typedef std::map<std::pair<int, int>, JointCombinedFilterPtr> joint_combined_fil
 class MultiJointTracker : public RecursiveEstimatorFilterInterface<ks_state_t, ks_measurement_t>
 {
 public:
-  MultiJointTracker(double loop_period_ns, ks_analysis_t ks_analysis_type, double dj_ne);
+    MultiJointTracker(double loop_period_ns, ks_analysis_t ks_analysis_type, double dj_ne);
 
-  virtual ~MultiJointTracker();
+    virtual ~MultiJointTracker();
 
-  /**
+    /**
    * @brief First step when updating the filter. The next state is predicted from current state and system model
    *
    */
-  virtual void predictState(double time_interval_ns);
+    virtual void predictState(double time_interval_ns);
 
-  /**
+    /**
    * @brief Second step when updating the filter. The next measurement is predicted from the predicted next state
    *
    */
-  virtual void predictMeasurement();
+    virtual void predictMeasurement();
 
-  /**
+    /**
    * Set the last received poses of the RBs
    */
-  virtual void setMeasurement(const ks_measurement_t & poses_and_vels, const double& measurement_timestamp_ns);
+    virtual void setMeasurement(const ks_measurement_t & poses_and_vels, const double& measurement_timestamp_ns);
+    virtual void setMeasurementFT(const std::vector<double>& ft_meas, const double& measurement_timestamp_ns);
+    virtual void setMeasurementEE2CP(const std::vector<double>& ee2cp_rel_pose_meas, const double& measurement_timestamp_ns);
+    virtual void slippageDetected(int slippage);
 
-  /**
+
+    /**
    * @brief Third and final step when updating the filter. The predicted next state is corrected based on the difference
    * between predicted and acquired measurement
    *
    */
-  virtual void correctState();
+    virtual void correctState();
 
-  virtual void addPredictedState(const ks_state_t &predicted_state , const double& predicted_state_timestamp_ns)
-  {
-      std::cout << "Not implemented" << std::endl;
-  }
+    virtual void addPredictedState(const ks_state_t &predicted_state , const double& predicted_state_timestamp_ns)
+    {
+        std::cout << "Not implemented" << std::endl;
+    }
 
-  virtual void setNumSamplesLikelihoodEstimation(int likelihood_sample_num)
-  {
-      this->_likelihood_sample_num = likelihood_sample_num;
-  }
+    virtual void setNumSamplesLikelihoodEstimation(int likelihood_sample_num)
+    {
+        this->_likelihood_sample_num = likelihood_sample_num;
+    }
 
-  virtual void setSigmaDeltaMeasurementUncertaintyLinear(double sigma_delta_meas_uncertainty_linear)
-  {
-      this->_sigma_delta_meas_uncertainty_linear = sigma_delta_meas_uncertainty_linear;
-  }
+    virtual void setSigmaDeltaMeasurementUncertaintyLinear(double sigma_delta_meas_uncertainty_linear)
+    {
+        this->_sigma_delta_meas_uncertainty_linear = sigma_delta_meas_uncertainty_linear;
+    }
 
-  virtual void setSigmaDeltaMeasurementUncertaintyAngular(double sigma_delta_meas_uncertainty_angular)
-  {
-      this->_sigma_delta_meas_uncertainty_angular = sigma_delta_meas_uncertainty_angular;
-  }
+    virtual void setSigmaDeltaMeasurementUncertaintyAngular(double sigma_delta_meas_uncertainty_angular)
+    {
+        this->_sigma_delta_meas_uncertainty_angular = sigma_delta_meas_uncertainty_angular;
+    }
 
-  virtual void setPrismaticPriorCovarianceVelocity(const double& value)
-  {
-      this->_prism_prior_cov_vel = value;
-  }
+    virtual void setPrismaticPriorCovarianceVelocity(const double& value)
+    {
+        this->_prism_prior_cov_vel = value;
+    }
 
-  virtual void setPrismaticSigmaSystemNoisePhi(const double& value)
-  {
-      this->_prism_sigma_sys_noise_phi = value;
-  }
+    virtual void setPrismaticSigmaSystemNoisePhi(const double& value)
+    {
+        this->_prism_sigma_sys_noise_phi = value;
+    }
 
-  virtual void setPrismaticSigmaSystemNoiseTheta(const double& value)
-  {
-      this->_prism_sigma_sys_noise_theta = value;
-  }
+    virtual void setPrismaticSigmaSystemNoiseTheta(const double& value)
+    {
+        this->_prism_sigma_sys_noise_theta = value;
+    }
 
-  virtual void setPrismaticSigmaSystemNoisePV(const double& value)
-  {
-      this->_prism_sigma_sys_noise_pv = value;
-  }
+    virtual void setPrismaticSigmaSystemNoisePV(const double& value)
+    {
+        this->_prism_sigma_sys_noise_pv = value;
+    }
 
-  virtual void setPrismaticSigmaSystemNoisePVd(const double& value)
-  {
-      this->_prism_sigma_sys_noise_pvd = value;
-  }
+    virtual void setPrismaticSigmaSystemNoisePVd(const double& value)
+    {
+        this->_prism_sigma_sys_noise_pvd = value;
+    }
 
-  virtual void setPrismaticSigmaMeasurementNoise(const double& value)
-  {
-      this->_prism_sigma_meas_noise = value;
-  }
+    virtual void setPrismaticSigmaMeasurementNoise(const double& value)
+    {
+        this->_prism_sigma_meas_noise = value;
+    }
 
-  virtual void setRevolutePriorCovarianceVelocity(const double& value)
-  {
-      this->_rev_prior_cov_vel = value;
-  }
+    virtual void setRevolutePriorCovarianceVelocity(const double& value)
+    {
+        this->_rev_prior_cov_vel = value;
+    }
 
-  virtual void setRevoluteSigmaSystemNoisePhi(const double& value)
-  {
-      this->_rev_sigma_sys_noise_phi = value;
-  }
+    virtual void setRevoluteSigmaSystemNoisePhi(const double& value)
+    {
+        this->_rev_sigma_sys_noise_phi = value;
+    }
 
-  virtual void setRevoluteSigmaSystemNoiseTheta(const double& value)
-  {
-      this->_rev_sigma_sys_noise_theta = value;
-  }
+    virtual void setRevoluteSigmaSystemNoiseTheta(const double& value)
+    {
+        this->_rev_sigma_sys_noise_theta = value;
+    }
 
-  virtual void setRevoluteSigmaSystemNoisePx(const double& value)
-  {
-      this->_rev_sigma_sys_noise_px = value;
-  }
+    virtual void setRevoluteSigmaSystemNoisePx(const double& value)
+    {
+        this->_rev_sigma_sys_noise_px = value;
+    }
 
-  virtual void setRevoluteSigmaSystemNoisePy(const double& value)
-  {
-      this->_rev_sigma_sys_noise_py = value;
-  }
+    virtual void setRevoluteSigmaSystemNoisePy(const double& value)
+    {
+        this->_rev_sigma_sys_noise_py = value;
+    }
 
-  virtual void setRevoluteSigmaSystemNoisePz(const double& value)
-  {
-      this->_rev_sigma_sys_noise_pz = value;
-  }
+    virtual void setRevoluteSigmaSystemNoisePz(const double& value)
+    {
+        this->_rev_sigma_sys_noise_pz = value;
+    }
 
-  virtual void setRevoluteSigmaSystemNoiseRV(const double& value)
-  {
-      this->_rev_sigma_sys_noise_rv = value;
-  }
+    virtual void setRevoluteSigmaSystemNoiseRV(const double& value)
+    {
+        this->_rev_sigma_sys_noise_rv = value;
+    }
 
-  virtual void setRevoluteSigmaSystemNoiseRVd(const double& value)
-  {
-      this->_rev_sigma_sys_noise_rvd = value;
-  }
+    virtual void setRevoluteSigmaSystemNoiseRVd(const double& value)
+    {
+        this->_rev_sigma_sys_noise_rvd = value;
+    }
 
-  virtual void setRevoluteSigmaMeasurementNoise(const double& value)
-  {
-      this->_rev_sigma_meas_noise = value;
-  }
+    virtual void setRevoluteSigmaMeasurementNoise(const double& value)
+    {
+        this->_rev_sigma_meas_noise = value;
+    }
 
-  virtual void setRevoluteMinimumRotForEstimation(const double& value)
-  {
-      this->_rev_min_rot_for_ee = value;
-  }
+    virtual void setRevoluteMinimumRotForEstimation(const double& value)
+    {
+        this->_rev_min_rot_for_ee = value;
+    }
 
-  virtual void setRevoluteMaximumJointDistanceForEstimation(const double& value)
-  {
-      this->_rev_max_joint_distance_for_ee = value;
-  }
+    virtual void setRevoluteMaximumJointDistanceForEstimation(const double& value)
+    {
+        this->_rev_max_joint_distance_for_ee = value;
+    }
 
-  virtual void setMinimumJointAgeForEE(const int& value)
-  {
-      this->_min_joint_age_for_ee = value;
-  }
+    virtual void setMinimumJointAgeForEE(const int& value)
+    {
+        this->_min_joint_age_for_ee = value;
+    }
 
-  virtual void setRigidMaxTranslation(const double& value)
-  {
-      this->_rig_max_translation = value;
-  }
+    virtual void setRigidMaxTranslation(const double& value)
+    {
+        this->_rig_max_translation = value;
+    }
 
-  virtual void setRigidMaxRotation(const double& value)
-  {
-      this->_rig_max_rotation = value;
-  }
+    virtual void setRigidMaxRotation(const double& value)
+    {
+        this->_rig_max_rotation = value;
+    }
 
-  virtual void setMinimumNumFramesForNewRB(const int& value)
-  {
-      this->_min_num_frames_for_new_rb = value;
-  }
+    virtual void setMinimumNumFramesForNewRB(const int& value)
+    {
+        this->_min_num_frames_for_new_rb = value;
+    }
 
-  virtual JointCombinedFilterPtr getCombinedFilter(int n);
+    virtual void setRobotInteraction(bool robot_interaction)
+    {
+        this->_robot_interaction = robot_interaction;
+    }
 
-  virtual void estimateJointFiltersProbabilities();
+    virtual void setTypeOfGrasp(int type_of_grasp)
+    {
+        this->_type_of_grasp = type_of_grasp;
+    }
+
+    virtual JointCombinedFilterPtr getCombinedFilter(int n);
+
+    virtual void estimateJointFiltersProbabilities();
 
 protected:
 
-  /**
+    /**
    * @brief Prepares the state variable to be returned (getState is constant and we cannot change the state there)
    * The estimated state is the kinemetic structure: for each pair of RBids the most likely JointFilter object,
    * which includes the joint parameters and the latent variables
    *
    */
-  virtual void _reflectState();
+    virtual void _reflectState();
 
-  ks_analysis_t _ks_analysis_type;
-  double _disconnected_j_ne;
+    ks_analysis_t _ks_analysis_type;
+    double _disconnected_j_ne;
 
-  // One filter for each pair of RBs
-  joint_combined_filters_map _joint_combined_filters;
+    // One filter for each pair of RBs
+    joint_combined_filters_map _joint_combined_filters;
 
-  // Reject the first transformations so that the RBM is more stable
-  std::map<std::pair<int, int>, int> _precomputing_counter;
+    // Reject the first transformations so that the RBM is more stable
+    std::map<std::pair<int, int>, int> _precomputing_counter;
 
-  // Save the pose of the RRB in the SF when the SRB was born
-  std::map<std::pair<int, int>, Eigen::Twistd > _rrb_pose_at_srb_birthday_in_sf;
+    // Save the pose of the RRB in the SF when the SRB was born
+    std::map<std::pair<int, int>, Eigen::Twistd > _rrb_pose_at_srb_birthday_in_sf;
 
-  // Save the pose of the SRB in the SF when the SRB was born
-  std::map<std::pair<int, int>, Eigen::Twistd > _srb_pose_at_srb_birthday_in_sf;
+    // Save the pose of the SRB in the SF when the SRB was born
+    std::map<std::pair<int, int>, Eigen::Twistd > _srb_pose_at_srb_birthday_in_sf;
 
-  omip_msgs::RigidBodyPosesAndVelsMsgPtr _last_rcvd_poses_and_vels;
+    omip_msgs::RigidBodyPosesAndVelsMsgPtr _last_rcvd_poses_and_vels;
 
 
-  omip_msgs::RigidBodyPosesAndVelsMsgPtr _previous_rcvd_poses_and_vels;
-  // New: 9.8.2016: With the new trajectory initialization of the rigid bodies the first time we receive
-  // the pose of a new rigid body, this rigid body is already min_num_frames_for_new_rb frames old
-  // Therefore, the previous pose of the other rigid bodies is not equal to their pose when the new rigid body was born
-  // CHANGE: we accumulate a vector of poses with maximum lenght min_num_frames_for_new_rb
-  std::list<omip_msgs::RigidBodyPosesAndVelsMsgPtr> _n_previous_rcvd_poses_and_vels;
+    omip_msgs::RigidBodyPosesAndVelsMsgPtr _previous_rcvd_poses_and_vels;
+    // New: 9.8.2016: With the new trajectory initialization of the rigid bodies the first time we receive
+    // the pose of a new rigid body, this rigid body is already min_num_frames_for_new_rb frames old
+    // Therefore, the previous pose of the other rigid bodies is not equal to their pose when the new rigid body was born
+    // CHANGE: we accumulate a vector of poses with maximum lenght min_num_frames_for_new_rb
+    std::list<omip_msgs::RigidBodyPosesAndVelsMsgPtr> _n_previous_rcvd_poses_and_vels;
 
-  int _likelihood_sample_num;
-  double _sigma_delta_meas_uncertainty_linear;
-  double _sigma_delta_meas_uncertainty_angular;
+    int _likelihood_sample_num;
+    double _sigma_delta_meas_uncertainty_linear;
+    double _sigma_delta_meas_uncertainty_angular;
 
-  double _prism_prior_cov_vel;
-  double _prism_sigma_sys_noise_phi;
-  double _prism_sigma_sys_noise_theta;
-  double _prism_sigma_sys_noise_pv;
-  double _prism_sigma_sys_noise_pvd;
-  double _prism_sigma_meas_noise;
+    double _prism_prior_cov_vel;
+    double _prism_sigma_sys_noise_phi;
+    double _prism_sigma_sys_noise_theta;
+    double _prism_sigma_sys_noise_pv;
+    double _prism_sigma_sys_noise_pvd;
+    double _prism_sigma_meas_noise;
 
-  double _rev_prior_cov_vel;
-  double _rev_sigma_sys_noise_phi;
-  double _rev_sigma_sys_noise_theta;
-  double _rev_sigma_sys_noise_px;
-  double _rev_sigma_sys_noise_py;
-  double _rev_sigma_sys_noise_pz;
-  double _rev_sigma_sys_noise_rv;
-  double _rev_sigma_sys_noise_rvd;
-  double _rev_sigma_meas_noise;
+    double _rev_prior_cov_vel;
+    double _rev_sigma_sys_noise_phi;
+    double _rev_sigma_sys_noise_theta;
+    double _rev_sigma_sys_noise_px;
+    double _rev_sigma_sys_noise_py;
+    double _rev_sigma_sys_noise_pz;
+    double _rev_sigma_sys_noise_rv;
+    double _rev_sigma_sys_noise_rvd;
+    double _rev_sigma_meas_noise;
 
-  double _rev_min_rot_for_ee;
-  double _rev_max_joint_distance_for_ee;
+    double _rev_min_rot_for_ee;
+    double _rev_max_joint_distance_for_ee;
 
-  double _rig_max_translation;
-  double _rig_max_rotation;
+    double _rig_max_translation;
+    double _rig_max_rotation;
 
-  int _min_joint_age_for_ee;
+    int _min_joint_age_for_ee;
 
-  int _min_num_frames_for_new_rb;
+    int _min_num_frames_for_new_rb;
+
+    bool _robot_interaction;
+    int _type_of_grasp;
+
+    Eigen::Twistd _initial_irb_pose;
 };
 }
 

@@ -83,29 +83,6 @@ public:
   virtual void estimateMeasurementHistoryLikelihood();
 
   /**
-   * Generate a hypothesis about the pose of the second rigid body based on the pose of the
-   * reference rigid body and the internal state (joint parameters and latent variable)
-   */
-  virtual geometry_msgs::TwistWithCovariance getPredictedSRBPoseWithCovInSensorFrame();
-
-  /**
- * @brief Generate a prediction about the change in pose of the second rigid body (SRB) and its covariance using the frame of sensor (SF) as observation and ref frame
- * based on the predicted measurement and the predicted next pose of the reference rigid body (RRB) in the sensor frame (SF)
- *
- * @return geometry_msgs::TwistWithCovariance Change in pose of the second rigid body in form of a twist with covariance based on the model uncertainty
- */
-  virtual geometry_msgs::TwistWithCovariance getPredictedSRBDeltaPoseWithCovInSensorFrame();
-
-  /**
- * @brief Generate a prediction about the velocity of the second rigid body (SRB) and its covariance using the frame of sensor (SF) as observation and ref frame
- * based on the predicted measurement and the predicted next pose of the reference rigid body (RRB) in the sensor frame (SF)
- *
- * @return geometry_msgs::TwistWithCovariance Velocity of the second rigid body in form of a twist with covariance based on the model uncertainty
- */
-  virtual geometry_msgs::TwistWithCovariance getPredictedSRBVelocityWithCovInSensorFrame();
-
-
-  /**
    * Return rviz markers that show the type and parameters of the estimated joint
    */
   virtual std::vector<visualization_msgs::Marker> getJointMarkersInRRBFrame() const;

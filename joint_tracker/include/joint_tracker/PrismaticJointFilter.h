@@ -105,29 +105,6 @@ public:
    * of the second RB relative to the reference RB
    */
   virtual void estimateMeasurementHistoryLikelihood();
-  /**
-   * @brief We use the kinematic structure to predict the next pose-twist of the second rigid body of the joint (with covariance based on the model uncertainty)
-   * in sensor frame (the frame where we track the RBs). This values will be passed to the MultiRBTracker
-   *
-   * @return geometry_msgs::TwistWithCovariance Pose of the second rigid body in form of a twist with covariance based on the model uncertainty
-   */
-  virtual geometry_msgs::TwistWithCovariance getPredictedSRBPoseWithCovInSensorFrame();
-
-  /**
- * @brief Generate a prediction about the change in pose of the second rigid body (SRB) and its covariance using the frame of sensor (SF) as observation and ref frame
- * based on the predicted measurement and the predicted next pose of the reference rigid body (RRB) in the sensor frame (SF)
- *
- * @return geometry_msgs::TwistWithCovariance Change in pose of the second rigid body in form of a twist with covariance based on the model uncertainty
- */
-  virtual geometry_msgs::TwistWithCovariance getPredictedSRBDeltaPoseWithCovInSensorFrame();
-
-  /**
- * @brief Generate a prediction about the velocity of the second rigid body (SRB) and its covariance using the frame of sensor (SF) as observation and ref frame
- * based on the predicted measurement and the predicted next pose of the reference rigid body (RRB) in the sensor frame (SF)
- *
- * @return geometry_msgs::TwistWithCovariance Velocity of the second rigid body in form of a twist with covariance based on the model uncertainty
- */
-  virtual geometry_msgs::TwistWithCovariance getPredictedSRBVelocityWithCovInSensorFrame();
 
   virtual void estimateUnnormalizedModelProbability() ;
 
@@ -149,6 +126,12 @@ public:
   virtual void initialize();
 
   virtual void setCovarianceDeltaMeasurementLinear(double delta_meas);
+
+  virtual void setMeasurement(joint_measurement_t acquired_measurement, const double& measurement_timestamp_ns);
+
+  virtual void setInitialMeasurement(const joint_measurement_t &initial_measurement,
+                                     const Eigen::Twistd& rrb_pose_at_srb_birth_in_sf,
+                                     const Eigen::Twistd& srb_pose_at_srb_birth_in_sf);
 
 protected:
 

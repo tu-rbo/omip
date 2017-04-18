@@ -7,6 +7,12 @@
 #include "joint_tracker/RevoluteJointFilter.h"
 #include "joint_tracker/DisconnectedJointFilter.h"
 
+#include "joint_tracker/PerfectGraspFilter.h"
+#include "joint_tracker/UnconstrainedRyGraspFilter.h"
+#include "joint_tracker/UnconstrainedRyTyGraspFilter.h"
+
+#include "joint_tracker/DeformationFilter.h"
+
 using namespace omip;
 using namespace MatrixWrapper;
 using namespace BFL;
@@ -31,6 +37,72 @@ JointCombinedFilter::JointCombinedFilter():
     this->_joint_normalized_prediction_errors[PRISMATIC_JOINT] = -1.;
     this->_joint_normalized_prediction_errors[REVOLUTE_JOINT] = -1.;
     this->_joint_normalized_prediction_errors[DISCONNECTED_JOINT] = -1.;
+}
+
+void JointCombinedFilter::useGraspFilter(int type_of_grasp)
+{
+    this->_joint_filters.clear();
+    this->_joint_normalized_prediction_errors.clear();
+    PerfectGraspFilterPtr pgf(new PerfectGraspFilter());
+    UnconstrainedRyGraspFilterPtr uriygf(new UnconstrainedRyGraspFilter());
+    UnconstrainedRyTyGraspFilterPtr urtiygf(new UnconstrainedRyTyGraspFilter());
+    DisconnectedJointFilterPtr df(new DisconnectedJointFilter());
+    df->setIsGraspModel(true);
+    this->_joint_filters[PERFECT_GRASP_JOINT] = pgf;
+    this->_joint_filters[UNCONSTRAINED_RY_GRASP_JOINT] = uriygf;
+    this->_joint_filters[UNCONSTRAINED_RY_TY_GRASP_JOINT] = urtiygf;
+    this->_joint_filters[DISCONNECTED_JOINT] = df;
+
+    // TODO: Set the prior probability instead. The likelihood should be estimated!
+    switch(type_of_grasp)
+    {
+    case 0:
+        break;
+    case 1:
+        pgf->setLikelihoodOfLastMeasurements(1);
+        uriygf->setLikelihoodOfLastMeasurements(0);
+        urtiygf->setLikelihoodOfLastMeasurements(0);
+        df->setLikelihoodOfLastMeasurements(0.5);
+        break;
+    case 2:
+        pgf->setLikelihoodOfLastMeasurements(0);
+        uriygf->setLikelihoodOfLastMeasurements(1);
+        urtiygf->setLikelihoodOfLastMeasurements(0);
+        df->setLikelihoodOfLastMeasurements(0.5);
+        break;
+    case 3:
+        pgf->setLikelihoodOfLastMeasurements(0);
+        uriygf->setLikelihoodOfLastMeasurements(0);
+        urtiygf->setLikelihoodOfLastMeasurements(1);
+        df->setLikelihoodOfLastMeasurements(0.5);
+        break;
+    default:
+        pgf->setLikelihoodOfLastMeasurements(0);
+        uriygf->setLikelihoodOfLastMeasurements(0);
+        urtiygf->setLikelihoodOfLastMeasurements(0);
+        df->setLikelihoodOfLastMeasurements(1);
+        break;
+    }
+    BOOST_FOREACH(joint_filters_map::value_type joint_filter_it, this->_joint_filters)
+    {
+        joint_filter_it.second->setJointId(_joint_id);
+    }
+}
+
+void JointCombinedFilter::useDeformationFilter()
+{
+    this->_joint_filters.clear();
+    this->_joint_normalized_prediction_errors.clear();
+    DeformationFilterPtr cpf(new DeformationFilter());
+    DisconnectedJointFilterPtr df(new DisconnectedJointFilter());
+    df->setIsGraspModel(true);
+    this->_joint_filters[CONTACT_POINT_JOINT] = cpf;
+    this->_joint_filters[DISCONNECTED_JOINT] = df;
+    df->setLikelihoodOfLastMeasurements(0);
+    BOOST_FOREACH(joint_filters_map::value_type joint_filter_it, this->_joint_filters)
+    {
+        joint_filter_it.second->setJointId(_joint_id);
+    }
 }
 
 void JointCombinedFilter::setJointLikelihoodDisconnected(double disconnected_joint_likelihood)
@@ -157,6 +229,14 @@ void JointCombinedFilter::setInitialMeasurement(const joint_measurement_t &initi
     }
 }
 
+void JointCombinedFilter::slippageDetected(int slippage)
+{
+    BOOST_FOREACH(joint_filters_map::value_type joint_filter_it, this->_joint_filters)
+    {
+        joint_filter_it.second->slippageDetected(slippage);
+    }
+}
+
 JointCombinedFilter::~JointCombinedFilter()
 {
 
@@ -196,6 +276,26 @@ void JointCombinedFilter::setMeasurement(joint_measurement_t acquired_measuremen
     }
 }
 
+void JointCombinedFilter::setMeasurementFT(const std::vector<double>& ft_meas, const double& measurement_timestamp_ns)
+{
+    BOOST_FOREACH(joint_filters_map::value_type joint_filter_it, this->_joint_filters)
+    {
+        joint_filter_it.second->setMeasurementFT(ft_meas, measurement_timestamp_ns);
+    }
+}
+
+void JointCombinedFilter::setMeasurementEE2PC(const std::vector<double>& ee2cp_rel_pose_meas, const double& measurement_timestamp_ns)
+{
+    BOOST_FOREACH(joint_filters_map::value_type joint_filter_it, this->_joint_filters)
+    {
+        if(joint_filter_it.second->getJointFilterType() == CONTACT_POINT_JOINT)
+        {
+            DeformationFilterPtr cpf = boost::dynamic_pointer_cast<DeformationFilter>(joint_filter_it.second);
+            cpf->setMeasurementEE2CP(ee2cp_rel_pose_meas, measurement_timestamp_ns);
+        }
+    }
+}
+
 void JointCombinedFilter::correctState()
 {
     BOOST_FOREACH(joint_filters_map::value_type joint_filter_it, this->_joint_filters)
@@ -215,21 +315,12 @@ void JointCombinedFilter::predictState(double time_interval_ns)
 void JointCombinedFilter::normalizeJointFilterProbabilities()
 {
     this->_normalizing_term = 0.0;
-    double sum_of_unnormalized_model_probabilities = 0.0;
 
     // First we iterate over all the joints and collect their unnormalized likelihoods
-    // Except the disconnected joint that is already normalized!
     BOOST_FOREACH(joint_filters_map::value_type joint_filter_it, this->_joint_filters)
     {
-        //if(joint_filter_it.second->getJointFilterType() != DISCONNECTED_JOINT)
-        //{
-            sum_of_unnormalized_model_probabilities += joint_filter_it.second->getUnnormalizedProbabilityOfJointFilter();
-        //}
+        this->_normalizing_term += joint_filter_it.second->getUnnormalizedProbabilityOfJointFilter();
     }
-
-    double normalized_disconnected_probability = this->_joint_filters[DISCONNECTED_JOINT]->getProbabilityOfJointFilter();
-    this->_normalizing_term =
-            (sum_of_unnormalized_model_probabilities);// / (1.0 - normalized_disconnected_probability);
 
     // If the normalizing term is 0 the probabilities would become infinite!
     if(_normalizing_term < 1e-5)

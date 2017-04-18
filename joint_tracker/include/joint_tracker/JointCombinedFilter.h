@@ -123,6 +123,8 @@ public:
    * @param acquired_measurement Latest acquired measurement
    */
   virtual void setMeasurement(joint_measurement_t acquired_measurement, const double& measurement_timestamp_ns);
+  virtual void setMeasurementFT(const std::vector<double>& ft_meas, const double& measurement_timestamp_ns);
+  virtual void setMeasurementEE2PC(const std::vector<double>& ee2cp_rel_pose_meas, const double& measurement_timestamp_ns);
 
   /**
    * Generate a hypothesis about the pose of the second rigid body based on the pose of the
@@ -164,6 +166,10 @@ public:
    * Return the joint id
    */
   virtual JointCombinedFilterId getJointCombinedFilterId() const;
+
+  virtual void useGraspFilter(int type_of_grasp);
+
+  virtual void useDeformationFilter();
 
   virtual void setJointLikelihoodDisconnected(double disconnected_joint_likelihood);
 
@@ -207,6 +213,8 @@ public:
 
   virtual void setInitialMeasurement(const joint_measurement_t &initial_measurement,
                                           const Eigen::Twistd& rrb_pose_at_srb_birth_in_sf, const Eigen::Twistd& srb_pose_at_srb_birth_in_sf);
+
+  virtual void slippageDetected(int slippage);
 
 protected:
 

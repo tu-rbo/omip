@@ -1,5 +1,5 @@
 /*
- * RevoluteJointFilter.h
+ * UnconstrainedRyGraspFilter.h
  *
  *      Author: roberto
  *
@@ -29,8 +29,8 @@ Projectname = {Interactive Perception}
  * Enjoy!
  */
 
-#ifndef REVOLUTEJOINTFILTER_H_
-#define REVOLUTEJOINTFILTER_H_
+#ifndef UnconstrainedRotationInYGraspFilter_H_
+#define UnconstrainedRotationInYGraspFilter_H_
 
 #include "joint_tracker/JointFilter.h"
 
@@ -43,15 +43,15 @@ Projectname = {Interactive Perception}
 #include <model/linearanalyticsystemmodel_gaussianuncertainty.h>
 #include <model/analyticmeasurementmodel_gaussianuncertainty.h>
 #include <model/measurementmodel.h>
-#include "joint_tracker/pdf/NonLinearRevoluteMeasurementPdf.h"
+#include "joint_tracker/pdf/NonLinearGraspMeasurementPdf.h"
 
 namespace omip
 {
 
-class RevoluteJointFilter;
-typedef boost::shared_ptr<RevoluteJointFilter> RevoluteJointFilterPtr;
+class UnconstrainedRyGraspFilter;
+typedef boost::shared_ptr<UnconstrainedRyGraspFilter> UnconstrainedRyGraspFilterPtr;
 
-class RevoluteJointFilter : public JointFilter
+class UnconstrainedRyGraspFilter : public JointFilter
 {
 public:
 
@@ -60,12 +60,12 @@ public:
     /**
    * Constructor
    */
-    RevoluteJointFilter();
+    UnconstrainedRyGraspFilter();
 
     /**
    * Destructor
    */
-    virtual ~RevoluteJointFilter();
+    virtual ~UnconstrainedRyGraspFilter();
 
     /**
    * Creates a new Joint object with the same values as this one and passes
@@ -73,15 +73,15 @@ public:
    *
    * @return - A reference to the clone of this Feature object
    */
-    RevoluteJointFilterPtr clone() const
+    UnconstrainedRyGraspFilterPtr clone() const
     {
-        return (RevoluteJointFilterPtr(doClone()));
+        return (UnconstrainedRyGraspFilterPtr(doClone()));
     }
 
     /**
    * Copy constructor
    */
-    RevoluteJointFilter(const RevoluteJointFilter &rev_joint);
+    UnconstrainedRyGraspFilter(const UnconstrainedRyGraspFilter &rev_joint);
 
     /**
    * @brief First step when updating the filter. The next state is predicted from current state and system model
@@ -106,9 +106,6 @@ public:
    */
     virtual void estimateMeasurementHistoryLikelihood();
 
-    virtual void estimateUnnormalizedModelProbability() ;
-
-
     /**
    * Return rviz markers that show the type and parameters of the estimated joint
    */
@@ -124,30 +121,25 @@ public:
    */
     virtual std::string getJointFilterTypeStr() const;
 
-    virtual void setMinRotationRevolute(const double& value);
-
-    virtual void setMaxRadiusDistanceRevolute(const double& value);
-
     virtual void initialize();
 
-    virtual void setCovarianceDeltaMeasurementAngular(double sigma_delta_meas_uncertainty_angular);
+    virtual void setProprioceptionWeight(double pp_weight)
+    {
+        _pp_weight = pp_weight;
+    }
+
+     virtual void estimateUnnormalizedModelProbability();
 
 protected:
 
     /**
-   * A Revolute Joint constrains 5 of the 6 dofs of the relative motion between RBs
-   * Revolute Joints have joint orientation and joint position as motion parameters
-   * The latent variable is the angle of rotation of the second RB wrt to the reference RB
+   * A Grasp Joint constrains 0 of the 6 dofs of the relative motion between RBs
    */
-    double _sigma_delta_meas_uncertainty_angular;
-
-    double _rev_min_rot_for_ee;
-    double _rev_max_joint_distance_for_ee;
 
     BFL::LinearAnalyticConditionalGaussian* _sys_PDF;
     BFL::LinearAnalyticSystemModelGaussianUncertainty* _sys_MODEL;
 
-    BFL::NonLinearRevoluteMeasurementPdf* _meas_PDF;
+    BFL::NonLinearGraspMeasurementPdf* _meas_PDF;
     BFL::AnalyticMeasurementModelGaussianUncertainty* _meas_MODEL;
 
     BFL::ExtendedKalmanFilter* _ekf;
@@ -156,14 +148,22 @@ protected:
     void _initializeMeasurementModel();
     void _initializeEKF();
 
-    virtual RevoluteJointFilter* doClone() const
+    BFL::Matrix _A;
+
+    Eigen::Twistd _delta_eef_wrt_cf_ec;
+    Eigen::Twistd _delta_eef_wrt_previous_eef_ec;
+
+    virtual UnconstrainedRyGraspFilter* doClone() const
     {
-        return (new RevoluteJointFilter(*this));
+        return (new UnconstrainedRyGraspFilter(*this));
     }
 
-    double _accumulated_rotation;
+    double _pp_weight;
+
+    Eigen::Twistd _ft_based_ee_grasping_point_pose_ec;
+
 };
 
 }
 
-#endif /* REVOLUTEJOINTFILTER_H_ */
+#endif /* UnconstrainedRotYGraspFilter_H_ */

@@ -65,11 +65,8 @@ void RevoluteJointFilter::initialize()
     this->_joint_orientation = Eigen::Vector3d( this->_current_delta_pose_in_rrbf.rx(),
                                                     this->_current_delta_pose_in_rrbf.ry(),
                                                     this->_current_delta_pose_in_rrbf.rz());
+
     this->_joint_state = this->_joint_orientation.norm();
-    //this->_joint_velocity = this->_joint_state/(this->_loop_period_ns/1e9);
-    // Setting it to 0 is better.
-    // The best approximation would be to (this->_joint_state/num_steps_to_joint_state)/(this->_loop_period_ns/1e9)
-    // but we don't know how many steps passed since we estimated the first time the joint variable
     this->_joint_velocity = 0.0;
 
     this->_joint_states_all.push_back(this->_joint_state);
@@ -80,7 +77,6 @@ void RevoluteJointFilter::initialize()
 // Alternative
 //    Eigen::Matrix4d ht;
 //    Twist2TransformMatrix(_current_delta_pose_in_rrbf, ht);
-
 //    this->_joint_position = ht.block<3,1>(0,3)
 //            - ht.block<3,3>(0,0)*ht.block<3,1>(0,3);
 
@@ -171,7 +167,6 @@ void RevoluteJointFilter::_initializeEKF()
     prior_MU(6) = this->_joint_state;
     prior_MU(7) = this->_joint_velocity;
 
-
     for (int i = 1; i <= REV_STATE_DIM; i++)
     {
         prior_COV(i, i) = _prior_cov_vel;
@@ -258,11 +253,11 @@ void RevoluteJointFilter::predictMeasurement()
 
     ColumnVector predicted_delta_pose_in_rrbf = this->_meas_MODEL->PredictionGet(empty, state_updated_state);
 
-    this->_predicted_delta_pose_in_rrbf = Eigen::Twistd( predicted_delta_pose_in_rrbf(4), predicted_delta_pose_in_rrbf(5),
+    this->_change_in_relative_pose_predicted_in_rrbf = Eigen::Twistd( predicted_delta_pose_in_rrbf(4), predicted_delta_pose_in_rrbf(5),
                                                          predicted_delta_pose_in_rrbf(6), predicted_delta_pose_in_rrbf(1),
                                                          predicted_delta_pose_in_rrbf(2), predicted_delta_pose_in_rrbf(3));
 
-    Eigen::Displacementd predicted_delta = this->_predicted_delta_pose_in_rrbf.exp(1e-20);
+    Eigen::Displacementd predicted_delta = this->_change_in_relative_pose_predicted_in_rrbf.exp(1e-20);
     Eigen::Displacementd T_rrbf_srbf_t0 = this->_srb_initial_pose_in_rrbf.exp(1.0e-20);
     Eigen::Displacementd T_rrbf_srbf_t_next = predicted_delta * T_rrbf_srbf_t0;
 
@@ -272,6 +267,15 @@ void RevoluteJointFilter::predictMeasurement()
     this->_srb_predicted_pose_in_rrbf = unwrapTwist(this->_srb_predicted_pose_in_rrbf, T_rrbf_srbf_t_next, this->_srb_previous_predicted_pose_in_rrbf, change);
 
     this->_srb_previous_predicted_pose_in_rrbf = this->_srb_predicted_pose_in_rrbf;
+
+    SymmetricMatrix predicted_delta_pose_in_rrbf_cov = this->_meas_MODEL->CovarianceGet(empty, state_updated_state);
+    for(int i=0; i<6; i++)
+    {
+        for(int j=0; j<6; j++)
+        {
+             this->_change_in_relative_pose_cov_predicted_in_rrbf(i,j) = predicted_delta_pose_in_rrbf_cov(i+1,j+1);
+        }
+    }
 }
 
 void RevoluteJointFilter::correctState()
@@ -331,13 +335,13 @@ void RevoluteJointFilter::correctState()
     // This jump should happen if we are close to 2PI or -2PI rotation
     if(_from_inverted_to_non_inverted)
     {
-        _accumulated_rotation = std::round(joint_state_before/(2*M_PI))*2*M_PI;
+        _accumulated_rotation = boost::math::round(joint_state_before/(2*M_PI))*2*M_PI;
     }
 
     // This jump should happen if we are close to PI or -PI rotation
     if(_from_non_inverted_to_inverted)
     {
-        _accumulated_rotation = std::round(joint_state_before/(M_PI))*2*M_PI;
+        _accumulated_rotation = boost::math::round(joint_state_before/(M_PI))*2*M_PI;
     }
 
     this->_joint_state = updated_state(6);
@@ -350,14 +354,13 @@ void RevoluteJointFilter::correctState()
         _joint_state = _accumulated_rotation + _joint_state;
     }
 
-
     this->_uncertainty_joint_state = updated_uncertainty(6,6);
     this->_joint_velocity = updated_state(7);
     this->_uncertainty_joint_velocity = updated_uncertainty(7,7);
 
     this->_joint_orientation_phi = updated_state(1);
     this->_joint_orientation_theta = updated_state(2);
-    this->_uncertainty_joint_orientation_phitheta(0,0) = updated_uncertainty(1, 1);
+    this->_uncertainty_joint_orientation_phitheta(0,0) = updated_uncertainty(1, 1)*(1-this->_joint_orientation.dot(Eigen::Vector3d::UnitZ()));
     this->_uncertainty_joint_orientation_phitheta(0,1) = updated_uncertainty(1, 2);
     this->_uncertainty_joint_orientation_phitheta(1,0) = updated_uncertainty(1, 2);
     this->_uncertainty_joint_orientation_phitheta(1,1) = updated_uncertainty(2, 2);
@@ -395,7 +398,7 @@ void RevoluteJointFilter::estimateMeasurementHistoryLikelihood()
     Eigen::Vector3d rev_joint_translation_unitary = (-rev_joint_rotation_unitary).cross(rev_joint_position);
 
     double counter = 0.;
-    size_t trajectory_length = this->_delta_poses_in_rrbf.size();
+    size_t trajectory_length = this->_changes_in_relative_pose_in_rrbf.size();
     size_t amount_samples = std::min(trajectory_length, (size_t)this->_likelihood_sample_num);
     double delta_idx_samples = (double)std::max(1., (double)trajectory_length/(double)this->_likelihood_sample_num);
     size_t current_idx = 0;
@@ -414,9 +417,9 @@ void RevoluteJointFilter::estimateMeasurementHistoryLikelihood()
     for (size_t sample_idx = 0; sample_idx < amount_samples; sample_idx++)
     {
         current_idx = boost::math::round(sample_idx*delta_idx_samples);
-        Eigen::Displacementd rb2_last_delta_relative_displ = this->_delta_poses_in_rrbf.at(current_idx).exp(1e-12);
+        Eigen::Displacementd rb2_last_delta_relative_displ = this->_changes_in_relative_pose_in_rrbf.at(current_idx).exp(1e-12);
 
-        max_norm_of_deltas = std::max(this->_delta_poses_in_rrbf.at(current_idx).norm(), max_norm_of_deltas);
+        max_norm_of_deltas = std::max(this->_changes_in_relative_pose_in_rrbf.at(current_idx).norm(), max_norm_of_deltas);
 
         Eigen::Vector3d rb2_last_delta_relative_translation = rb2_last_delta_relative_displ.getTranslation();
         Eigen::Quaterniond rb2_last_delta_relative_rotation = Eigen::Quaterniond(rb2_last_delta_relative_displ.qw(),
@@ -461,6 +464,7 @@ void RevoluteJointFilter::estimateMeasurementHistoryLikelihood()
     }
 }
 
+
 void RevoluteJointFilter::estimateUnnormalizedModelProbability()
 {
     Eigen::Vector3d point1_in_rrbf = this->_joint_position + 100*this->_joint_orientation;
@@ -479,150 +483,22 @@ void RevoluteJointFilter::estimateUnnormalizedModelProbability()
     }
 
     Eigen::Vector4d point1_in_rrbf_homo(point1_in_rrbf.x(), point1_in_rrbf.y(), point1_in_rrbf.z(), 1.0);
-    Eigen::Vector4d point1_in_sf_homo = _rrb_current_pose_in_sf.exp(1e-12).toHomogeneousMatrix()*point1_in_rrbf_homo;
+    Eigen::Vector4d point1_in_sf_homo = _rrb_pose_in_sf.exp(1e-12).toHomogeneousMatrix()*point1_in_rrbf_homo;
     Eigen::Vector3d point1_in_sf(point1_in_sf_homo[0],point1_in_sf_homo[1],point1_in_sf_homo[2]);
 
     Eigen::Vector4d point2_in_rrbf_homo(point2_in_rrbf.x(), point2_in_rrbf.y(), point2_in_rrbf.z(), 1.0);
-    Eigen::Vector4d point2_in_sf_homo = _rrb_current_pose_in_sf.exp(1e-12).toHomogeneousMatrix()*point2_in_rrbf_homo;
+    Eigen::Vector4d point2_in_sf_homo = _rrb_pose_in_sf.exp(1e-12).toHomogeneousMatrix()*point2_in_rrbf_homo;
     Eigen::Vector3d point2_in_sf(point2_in_sf_homo[0],point2_in_sf_homo[1],point2_in_sf_homo[2]);
 
-    double distance_to_srb = ((point2_in_sf - point1_in_sf).cross(point1_in_sf - _srb_centroid_in_sf)).norm()/((point2_in_sf - point1_in_sf).norm());
 
-    p_params_given_model *= (1.0/(_rev_max_joint_distance_for_ee*sqrt(2.0*M_PI)))*exp((-1.0/2.0)*pow(distance_to_srb/_rev_max_joint_distance_for_ee, 2));
+    double distance_to_srb = 0;
+    if(_joint_id != -1) //static env
+    {
+        distance_to_srb = ((point2_in_sf - point1_in_sf).cross(point1_in_sf - _srb_centroid_in_sf)).norm()/((point2_in_sf - point1_in_sf).norm());
+        p_params_given_model *= (1.0/(_rev_max_joint_distance_for_ee*sqrt(2.0*M_PI)))*exp((-1.0/2.0)*pow(distance_to_srb/_rev_max_joint_distance_for_ee, 2));
+    }
 
     this->_unnormalized_model_probability = _model_prior_probability*_measurements_likelihood*p_params_given_model;
-}
-
-geometry_msgs::TwistWithCovariance RevoluteJointFilter::getPredictedSRBDeltaPoseWithCovInSensorFrame()
-{
-    Eigen::Matrix<double, 6, 6> adjoint;
-    computeAdjoint(this->_rrb_current_pose_in_sf, adjoint);
-    Eigen::Twistd predicted_delta_pose_in_sf = adjoint*this->_predicted_delta_pose_in_rrbf;
-
-    geometry_msgs::TwistWithCovariance hypothesis;
-
-    hypothesis.twist.linear.x = predicted_delta_pose_in_sf.vx();
-    hypothesis.twist.linear.y = predicted_delta_pose_in_sf.vy();
-    hypothesis.twist.linear.z = predicted_delta_pose_in_sf.vz();
-    hypothesis.twist.angular.x = predicted_delta_pose_in_sf.rx();
-    hypothesis.twist.angular.y = predicted_delta_pose_in_sf.ry();
-    hypothesis.twist.angular.z = predicted_delta_pose_in_sf.rz();
-
-    // This call gives me the covariance of the predicted measurement: the relative pose between RBs
-    ColumnVector empty;
-    ColumnVector state_updated_state = this->_ekf->PostGet()->ExpectedValueGet();
-    SymmetricMatrix measurement_cov = this->_meas_MODEL->CovarianceGet(empty, state_updated_state);
-    for(int i=0; i<6; i++)
-    {
-        for(int j=0; j<6; j++)
-        {
-             hypothesis.covariance[6 * i + j] = measurement_cov(i+1,j+1);
-        }
-    }
-
-    return hypothesis;
-}
-
-geometry_msgs::TwistWithCovariance RevoluteJointFilter::getPredictedSRBVelocityWithCovInSensorFrame()
-{
-    Eigen::Matrix<double, 6, 6> adjoint;
-    computeAdjoint(this->_rrb_current_pose_in_sf, adjoint);
-    Eigen::Twistd predicted_delta_pose_in_sf = adjoint*(this->_predicted_delta_pose_in_rrbf/(_loop_period_ns/1e9));
-
-    geometry_msgs::TwistWithCovariance hypothesis;
-
-    hypothesis.twist.linear.x = predicted_delta_pose_in_sf.vx();
-    hypothesis.twist.linear.y = predicted_delta_pose_in_sf.vy();
-    hypothesis.twist.linear.z = predicted_delta_pose_in_sf.vz();
-    hypothesis.twist.angular.x = predicted_delta_pose_in_sf.rx();
-    hypothesis.twist.angular.y = predicted_delta_pose_in_sf.ry();
-    hypothesis.twist.angular.z = predicted_delta_pose_in_sf.rz();
-
-    // This call gives me the covariance of the predicted measurement: the relative pose between RBs
-    ColumnVector empty;
-    ColumnVector state_updated_state = this->_ekf->PostGet()->ExpectedValueGet();
-    SymmetricMatrix measurement_cov = this->_meas_MODEL->CovarianceGet(empty, state_updated_state);
-    for(int i=0; i<6; i++)
-    {
-        for(int j=0; j<6; j++)
-        {
-             hypothesis.covariance[6 * i + j] = measurement_cov(i+1,j+1);
-        }
-    }
-
-    return hypothesis;
-}
-
-geometry_msgs::TwistWithCovariance RevoluteJointFilter::getPredictedSRBPoseWithCovInSensorFrame()
-{
-    Eigen::Twistd delta_rrb_in_sf = this->_rrb_current_vel_in_sf*(this->_loop_period_ns/1e9);
-    Eigen::Twistd rrb_next_pose_in_sf = (delta_rrb_in_sf.exp(1e-12)*this->_rrb_current_pose_in_sf.exp(1e-12)).log(1e-12);
-
-    Eigen::Displacementd T_sf_rrbf_next = rrb_next_pose_in_sf.exp(1e-12);
-    Eigen::Displacementd T_rrbf_srbf_next = this->_srb_predicted_pose_in_rrbf.exp(1e-12);
-
-    Eigen::Displacementd T_sf_srbf_next = T_rrbf_srbf_next*T_sf_rrbf_next;
-
-    Eigen::Twistd srb_next_pose_in_sf = T_sf_srbf_next.log(1e-12);
-
-    geometry_msgs::TwistWithCovariance hypothesis;
-
-    hypothesis.twist.linear.x = srb_next_pose_in_sf.vx();
-    hypothesis.twist.linear.y = srb_next_pose_in_sf.vy();
-    hypothesis.twist.linear.z = srb_next_pose_in_sf.vz();
-    hypothesis.twist.angular.x = srb_next_pose_in_sf.rx();
-    hypothesis.twist.angular.y = srb_next_pose_in_sf.ry();
-    hypothesis.twist.angular.z = srb_next_pose_in_sf.rz();
-
-    // This call gives me the covariance of the predicted measurement: the relative pose between RBs
-    ColumnVector empty;
-    ColumnVector state_updated_state = this->_ekf->PostGet()->ExpectedValueGet();
-    SymmetricMatrix measurement_cov = this->_meas_MODEL->CovarianceGet(empty, state_updated_state);
-    Eigen::Matrix<double,6,6> measurement_cov_eigen;
-    for(int i=0; i<6; i++)
-    {
-        for(int j=0; j<6; j++)
-        {
-            measurement_cov_eigen(i,j) = measurement_cov(i+1,j+1);
-        }
-    }
-    // I need the covariance of the absolute pose of the second RB, so I add the cov of the relative pose to the
-    // cov of the reference pose. I need to "move" the second covariance to align it to the reference frame (see Barfoot)
-    Eigen::Matrix<double,6,6> tranformed_cov;
-    adjointXcovXadjointT(_rrb_current_pose_in_sf, measurement_cov_eigen, tranformed_cov);
-    Eigen::Matrix<double,6,6> new_pose_covariance = this->_rrb_pose_cov_in_sf + tranformed_cov;
-    for (unsigned int i = 0; i < 6; i++)
-    {
-        for (unsigned int j = 0; j < 6; j++)
-        {
-            hypothesis.covariance[6 * i + j] = new_pose_covariance(i, j);
-        }
-    }
-
-
-#ifdef PUBLISH_PREDICTED_POSE_AS_PWC
-    // This is used to visualize the predictions based on the joint hypothesis
-    geometry_msgs::PoseWithCovarianceStamped pose_with_cov_stamped;
-    pose_with_cov_stamped.header.stamp = ros::Time::now();
-    pose_with_cov_stamped.header.frame_id = "camera_rgb_optical_frame";
-
-    Eigen::Displacementd displ_from_twist = srb_next_pose_in_sf.exp(1e-12);
-    pose_with_cov_stamped.pose.pose.position.x = displ_from_twist.x();
-    pose_with_cov_stamped.pose.pose.position.y = displ_from_twist.y();
-    pose_with_cov_stamped.pose.pose.position.z = displ_from_twist.z();
-    pose_with_cov_stamped.pose.pose.orientation.x = displ_from_twist.qx();
-    pose_with_cov_stamped.pose.pose.orientation.y = displ_from_twist.qy();
-    pose_with_cov_stamped.pose.pose.orientation.z = displ_from_twist.qz();
-    pose_with_cov_stamped.pose.pose.orientation.w = displ_from_twist.qw();
-
-    for (unsigned int i = 0; i < 6; i++)
-        for (unsigned int j = 0; j < 6; j++)
-            pose_with_cov_stamped.pose.covariance[6 * i + j] = new_pose_covariance(i, j);
-
-    _predicted_next_pose_publisher.publish(pose_with_cov_stamped);
-#endif
-
-    return hypothesis;
 }
 
 std::vector<visualization_msgs::Marker> RevoluteJointFilter::getJointMarkersInRRBFrame() const
@@ -632,7 +508,6 @@ std::vector<visualization_msgs::Marker> RevoluteJointFilter::getJointMarkersInRR
     // We want the variables to be in the ref RB frame, without the initial relative transformation to the second RB
     Eigen::Vector3d rev_joint_ori_in_ref_rb = this->_joint_orientation;
     Eigen::Vector3d rev_joint_posi_in_ref_rb = this->_joint_position;
-
 
     std::vector<visualization_msgs::Marker> revolute_markers;
     // AXIS MARKER 1 -> The axis ///////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -705,6 +580,7 @@ std::vector<visualization_msgs::Marker> RevoluteJointFilter::getJointMarkersInRR
     axis_orientation_markerb.type = visualization_msgs::Marker::TEXT_VIEW_FACING;
     axis_orientation_markerb.scale.z = JOINT_VALUE_TEXT_SIZE;
     std::ostringstream oss_joint_value;
+
     oss_joint_value << std::fixed<< std::setprecision(0) << (180/M_PI)*this->_joint_state;
     axis_orientation_markerb.text = oss_joint_value.str() + std::string(" deg");
     axis_orientation_markerb.pose.position.x = rev_joint_posi_in_ref_rb.x();
@@ -749,7 +625,6 @@ std::vector<visualization_msgs::Marker> RevoluteJointFilter::getJointMarkersInRR
     rev_axis_unc_cone1.pose.position.x = rev_joint_posi_in_ref_rb.x();
     rev_axis_unc_cone1.pose.position.y = rev_joint_posi_in_ref_rb.y();
     rev_axis_unc_cone1.pose.position.z = rev_joint_posi_in_ref_rb.z();
-
 
     // NOTE:
     // Estimation of the uncertainty cones -----------------------------------------------
@@ -826,7 +701,7 @@ std::vector<visualization_msgs::Marker> RevoluteJointFilter::getJointMarkersInRR
     // If the uncertainty is close to 0 the scale in this direction should be 0
     // If the uncertainty is close to pi the scale in this direction should be inf
 
-    rev_axis_unc_cone1.scale.x = major_axis_length / (M_PI / 6.0);
+    rev_axis_unc_cone1.scale.x = major_axis_length*(1-this->_joint_orientation.dot(Eigen::Vector3d::UnitZ())) / (M_PI / 6.0);
     rev_axis_unc_cone1.scale.y = minor_axis_length / (M_PI / 6.0);
     rev_axis_unc_cone1.scale.z = 1.;
     revolute_markers.push_back(rev_axis_unc_cone1);
@@ -864,7 +739,7 @@ std::vector<visualization_msgs::Marker> RevoluteJointFilter::getJointMarkersInRR
     rev_axis_unc_cone1.pose.orientation.y = ori_quat_neg_final_ellipse.y();
     rev_axis_unc_cone1.pose.orientation.z = ori_quat_neg_final_ellipse.z();
     rev_axis_unc_cone1.pose.orientation.w = ori_quat_neg_final_ellipse.w();
-    rev_axis_unc_cone1.scale.x = major_axis_length / (M_PI / 6.0);
+    rev_axis_unc_cone1.scale.x = major_axis_length*(1-this->_joint_orientation.dot(Eigen::Vector3d::UnitZ())) / (M_PI / 6.0);
     rev_axis_unc_cone1.scale.y = minor_axis_length / (M_PI / 6.0);
     rev_axis_unc_cone1.scale.z = 1.;
     rev_axis_unc_cone1.id = 3 * this->_joint_id + 2;

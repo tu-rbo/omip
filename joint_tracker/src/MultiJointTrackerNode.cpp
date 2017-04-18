@@ -37,12 +37,16 @@ MultiJointTrackerNode::MultiJointTrackerNode() :
     RecursiveEstimatorNodeInterface(1),
     _loop_period_ns(0.),
     _sensor_fps(0.0),
-    _processing_factor(0)
+    _processing_factor(0),
+    _ft_values_being_used(false)
 
 {
     this->_namespace = std::string("joint_tracker");
     this->ReadParameters();
     this->_measurement_subscriber= this->_measurements_node_handle.subscribe( "/rb_tracker/state", 1, &MultiJointTrackerNode::measurementCallback, this);
+
+    this->_measurement_subscriber_ft = this->_measurements_node_handle.subscribe( this->_ft_topic, 1, &MultiJointTrackerNode::measurementFTCallback, this);
+
 
     this->_state_publisher = this->_measurements_node_handle.advertise<omip_msgs::KinematicStructureMsg>(this->_namespace + "/state", 100);
 
@@ -60,6 +64,13 @@ MultiJointTrackerNode::MultiJointTrackerNode() :
     // This is used to build URDF models that link to the reconstructed shapes
     this->_sr_path = ros::package::getPath("shape_reconstruction");
 
+    _grasping_type_publisher = this->_measurements_node_handle.advertise<std_msgs::Float64MultiArray>(this->_namespace + "/grasping_type", 100);
+
+    if(_robot_interaction)
+    {
+        this->_measurement_subscriber_cp = this->_measurements_node_handle.subscribe( "/ee2cp/measurement", 1, &MultiJointTrackerNode::measurementEE2CPCallback, this);
+        this->_slippage_detector_cp = this->_measurements_node_handle.subscribe( "/ee2cp/slippage_detected", 1, &MultiJointTrackerNode::slippageDetectedCallback, this);
+    }
 }
 
 MultiJointTrackerNode::~MultiJointTrackerNode()
@@ -129,6 +140,11 @@ void MultiJointTrackerNode::ReadParameters()
     int min_num_frames_for_new_rb;
     this->getROSParameter<int>(std::string("/rb_tracker/min_num_frames_for_new_rb"), min_num_frames_for_new_rb);
 
+    this->getROSParameter<bool>(std::string("/omip/robot_interaction"), _robot_interaction);
+    int type_of_grasp;
+    this->getROSParameter<int>(this->_namespace + std::string("/type_of_grasp"), type_of_grasp);
+    this->getROSParameter<std::string>(this->_namespace + std::string("/ft_topic"), _ft_topic);
+
     ROS_INFO_STREAM_NAMED( "MultiJointTrackerNode.ReadParameters", "MultiJointTrackerNode Parameters: " << std::endl << //
                            "\tType of kinematic analysis: " << ks_analysis_type << std::endl << //
                            "\tDisconnected joint normalized error (joint classification threshold): " << disconnected_j_ne << std::endl << //
@@ -153,7 +169,10 @@ void MultiJointTrackerNode::ReadParameters()
                            "\tMax translation to reject the rigid joint hyp: " << rig_max_translation << std::endl <<
                            "\tMax rotation to reject the rigid joint hyp: " << rig_max_rotation << std::endl <<
                            "\tMinimum joint age for ee: " << _min_joint_age_for_ee <<
-                           "\tMinimum num frames for new rb: " << min_num_frames_for_new_rb
+                           "\tMinimum num frames for new rb: " << min_num_frames_for_new_rb <<
+                           "\n\trobot_interaction: " << _robot_interaction <<
+                           "\n\ttype_of_grasp: " << type_of_grasp <<
+                           "\n\ttopic of the ft measurements: " << _ft_topic
                            );
 
     this->_re_filter = new MultiJointTracker(this->_loop_period_ns, (ks_analysis_t)ks_analysis_type, disconnected_j_ne);
@@ -187,6 +206,27 @@ void MultiJointTrackerNode::ReadParameters()
     this->_re_filter->setMinimumJointAgeForEE(this->_min_joint_age_for_ee);
 
     this->_re_filter->setMinimumNumFramesForNewRB(min_num_frames_for_new_rb);
+
+    this->_re_filter->setRobotInteraction(_robot_interaction);
+    this->_re_filter->setTypeOfGrasp(type_of_grasp);
+}
+
+void MultiJointTrackerNode::measurementFTCallback(const std_msgs::Float64MultiArrayConstPtr &ft_values)
+{
+    if(!_ft_values_being_used)
+    {
+        this->_last_ft_values = ft_values->data;
+    }
+}
+
+void MultiJointTrackerNode::measurementEE2CPCallback(const std_msgs::Float64MultiArrayConstPtr &rel_pose)
+{
+    this->_last_ee2cp_relpose = rel_pose->data;
+}
+
+void MultiJointTrackerNode::slippageDetectedCallback(const std_msgs::Int32ConstPtr &msg)
+{
+    this->_re_filter->slippageDetected(msg->data);
 }
 
 void MultiJointTrackerNode::measurementCallback(const boost::shared_ptr<ks_measurement_ros_t const> &poses_and_vels)
@@ -197,6 +237,14 @@ void MultiJointTrackerNode::measurementCallback(const boost::shared_ptr<ks_measu
     this->_current_measurement_time = poses_and_vels->header.stamp;
 
     this->_re_filter->setMeasurement(*poses_and_vels, (double)poses_and_vels->header.stamp.toNSec());
+
+    if(_robot_interaction)
+    {
+        this->_ft_values_being_used = true;
+        this->_re_filter->setMeasurementFT(this->_last_ft_values, 0);
+        this->_re_filter->setMeasurementEE2CP(this->_last_ee2cp_relpose, 0);
+        this->_ft_values_being_used = false;
+    }
 
     // Measure the time interval between the previous measurement and the current measurement
     ros::Duration time_between_meas = this->_current_measurement_time - this->_previous_measurement_time;
@@ -263,8 +311,11 @@ void MultiJointTrackerNode::measurementCallback(const boost::shared_ptr<ks_measu
     }
 
     this->_re_filter->estimateJointFiltersProbabilities();
+
+
     this->_publishState();
     this->_PrintResults();
+
     this->_re_filter->predictState(this->_loop_period_ns);
     this->_re_filter->predictMeasurement();
 
@@ -322,8 +373,13 @@ void MultiJointTrackerNode::_generateURDF(std_msgs::String& urdf_string_msg, sen
     std::map<std::pair<int, int>, JointCombinedFilterPtr>::const_iterator joint_combined_filters_it_end = kinematic_model_original.end();
     for (; joint_combined_filters_it != joint_combined_filters_it_end; joint_combined_filters_it++)
     {
-        JointFilterPtr joint_hypothesis = joint_combined_filters_it->second->getMostProbableJointFilter();
-        kinematic_model[joint_combined_filters_it->first] = joint_hypothesis;
+            if(!(_robot_interaction && joint_combined_filters_it->first.first == DEFORMED_END_EFFECTOR_FILTER_ID && joint_combined_filters_it->first.second == INTERACTED_RB_FILTER_ID)
+                    && !(_robot_interaction && joint_combined_filters_it->first.first == MULTIMODAL_EE_FILTER_ID && joint_combined_filters_it->first.second ==DEFORMED_END_EFFECTOR_FILTER_ID ))
+        {
+
+            JointFilterPtr joint_hypothesis = joint_combined_filters_it->second->getMostProbableJointFilter();
+            kinematic_model[joint_combined_filters_it->first] = joint_hypothesis;
+        }
     }
 
 
@@ -390,6 +446,7 @@ void MultiJointTrackerNode::_generateURDF(std_msgs::String& urdf_string_msg, sen
         if(RB_id_first == 0)
         {
             urdf_stream << "    <parent link=\"static_environment\"/>" << std::endl;
+            link_visuals_origin[RB_id_first] = std::pair<Eigen::Vector3d,Eigen::Vector3d>( Eigen::Vector3d(0.,0.,0.), Eigen::Vector3d(0.,0.,0.));
         }
         else{
             urdf_stream << "    <parent link=\"rb" << RB_id_first << "\"/>"<< std::endl;
@@ -471,7 +528,7 @@ void MultiJointTrackerNode::_generateURDF(std_msgs::String& urdf_string_msg, sen
 
         if(all_rb_ids.at(links_idx) == 0)
         {
-            name_ss << "shape_static_env" << all_rb_ids.at(links_idx) << ".stl";
+            name_ss << "static_env.stl";
         }else{
             name_ss << "shape_rb" << all_rb_ids.at(links_idx) << ".stl";
         }
@@ -521,7 +578,7 @@ void MultiJointTrackerNode::_generateURDF(std_msgs::String& urdf_string_msg, sen
 void MultiJointTrackerNode::_publishState() const
 {
     visualization_msgs::MarkerArray cleaning_markers;
-    for (int num_rbs=0; num_rbs<100; num_rbs++)
+    for (int num_rbs=0; num_rbs<15; num_rbs++)
     {
         for(int num_joint_markers=0; num_joint_markers < 3; num_joint_markers++)
         {
@@ -541,7 +598,6 @@ void MultiJointTrackerNode::_publishState() const
     }
     this->_state_publisher_rviz_markers.publish(cleaning_markers);
 
-    ks_state_ros_t kinematic_structure;
     visualization_msgs::MarkerArray markers_of_most_probable_structure;
 
     ros::Time time_markers = this->_current_measurement_time;
@@ -552,64 +608,78 @@ void MultiJointTrackerNode::_publishState() const
     // Populate a ros state message containing the kinematic structure (most probable joint and all others)
     BOOST_FOREACH(KinematicModel::value_type km_it, kinematic_model)
     {
-        omip_msgs::JointMsg joint_msg;
-        joint_msg.parent_rb_id = km_it.first.first;
-        joint_msg.child_rb_id = km_it.first.second;
+        if(!(_robot_interaction && km_it.first.first == DEFORMED_END_EFFECTOR_FILTER_ID && km_it.first.second == INTERACTED_RB_FILTER_ID)
+                && !(_robot_interaction && km_it.first.first == MULTIMODAL_EE_FILTER_ID && km_it.first.second == DEFORMED_END_EFFECTOR_FILTER_ID))
+        {
+            omip_msgs::JointMsg joint_msg;
+            joint_msg.parent_rb_id = km_it.first.first;
+            joint_msg.child_rb_id = km_it.first.second;
 
-        joint_msg.rigid_probability = km_it.second->getJointFilter(RIGID_JOINT)->getProbabilityOfJointFilter();
-        joint_msg.discon_probability = km_it.second->getJointFilter(DISCONNECTED_JOINT)->getProbabilityOfJointFilter();
-        joint_msg.rev_probability = km_it.second->getJointFilter(REVOLUTE_JOINT)->getProbabilityOfJointFilter();
-        joint_msg.prism_probability = km_it.second->getJointFilter(PRISMATIC_JOINT)->getProbabilityOfJointFilter();
+            joint_msg.rigid_probability = km_it.second->getJointFilter(RIGID_JOINT)->getProbabilityOfJointFilter();
+            joint_msg.discon_probability = km_it.second->getJointFilter(DISCONNECTED_JOINT)->getProbabilityOfJointFilter();
+            joint_msg.rev_probability = km_it.second->getJointFilter(REVOLUTE_JOINT)->getProbabilityOfJointFilter();
+            joint_msg.prism_probability = km_it.second->getJointFilter(PRISMATIC_JOINT)->getProbabilityOfJointFilter();
 
-        Eigen::Vector3d temp_eigen = km_it.second->getJointFilter(PRISMATIC_JOINT)->getJointPositionInRRBFrame();
-        geometry_msgs::Point temp_ros;
-        temp_ros.x = temp_eigen.x();
-        temp_ros.y = temp_eigen.y();
-        temp_ros.z = temp_eigen.z();
-        joint_msg.prism_position = temp_ros;
+            Eigen::Vector3d temp_eigen = km_it.second->getJointFilter(PRISMATIC_JOINT)->getJointPositionInRRBFrame();
+            geometry_msgs::Point temp_ros;
+            temp_ros.x = temp_eigen.x();
+            temp_ros.y = temp_eigen.y();
+            temp_ros.z = temp_eigen.z();
+            joint_msg.prism_position = temp_ros;
 
-        geometry_msgs::Vector3 temp_ros_vect;
-        temp_eigen = km_it.second->getJointFilter(PRISMATIC_JOINT)->getJointOrientationUnitaryVector();
-        temp_ros_vect.x = temp_eigen.x();
-        temp_ros_vect.y = temp_eigen.y();
-        temp_ros_vect.z = temp_eigen.z();
-        joint_msg.prism_orientation = temp_ros_vect;
+            geometry_msgs::Vector3 temp_ros_vect;
+            temp_eigen = km_it.second->getJointFilter(PRISMATIC_JOINT)->getJointOrientationUnitaryVector();
+            temp_ros_vect.x = temp_eigen.x();
+            temp_ros_vect.y = temp_eigen.y();
+            temp_ros_vect.z = temp_eigen.z();
+            joint_msg.prism_orientation = temp_ros_vect;
 
-        joint_msg.prism_ori_phi = km_it.second->getJointFilter(PRISMATIC_JOINT)->getOrientationPhiInRRBFrame();
-        joint_msg.prism_ori_theta = km_it.second->getJointFilter(PRISMATIC_JOINT)->getOrientationThetaInRRBFrame();
+            joint_msg.prism_ori_phi = km_it.second->getJointFilter(PRISMATIC_JOINT)->getOrientationPhiInRRBFrame();
+            joint_msg.prism_ori_theta = km_it.second->getJointFilter(PRISMATIC_JOINT)->getOrientationThetaInRRBFrame();
 
-        joint_msg.prism_ori_cov[0] = km_it.second->getJointFilter(PRISMATIC_JOINT)->getCovarianceOrientationPhiPhiInRRBFrame();
-        joint_msg.prism_ori_cov[1] = km_it.second->getJointFilter(PRISMATIC_JOINT)->getCovarianceOrientationPhiThetaInRRBFrame();
-        joint_msg.prism_ori_cov[2] = km_it.second->getJointFilter(PRISMATIC_JOINT)->getCovarianceOrientationPhiThetaInRRBFrame();
-        joint_msg.prism_ori_cov[3] = km_it.second->getJointFilter(PRISMATIC_JOINT)->getCovarianceOrientationThetaThetaInRRBFrame();
+            joint_msg.prism_ori_cov[0] = km_it.second->getJointFilter(PRISMATIC_JOINT)->getCovarianceOrientationPhiPhiInRRBFrame();
+            joint_msg.prism_ori_cov[1] = km_it.second->getJointFilter(PRISMATIC_JOINT)->getCovarianceOrientationPhiThetaInRRBFrame();
+            joint_msg.prism_ori_cov[2] = km_it.second->getJointFilter(PRISMATIC_JOINT)->getCovarianceOrientationPhiThetaInRRBFrame();
+            joint_msg.prism_ori_cov[3] = km_it.second->getJointFilter(PRISMATIC_JOINT)->getCovarianceOrientationThetaThetaInRRBFrame();
 
-        joint_msg.prism_joint_value = km_it.second->getJointFilter(PRISMATIC_JOINT)->getJointState();
+            joint_msg.prism_joint_value = km_it.second->getJointFilter(PRISMATIC_JOINT)->getJointState();
 
-        temp_eigen = km_it.second->getJointFilter(REVOLUTE_JOINT)->getJointPositionInRRBFrame();
-        temp_ros.x = temp_eigen.x();
-        temp_ros.y = temp_eigen.y();
-        temp_ros.z = temp_eigen.z();
-        joint_msg.rev_position = temp_ros;
+            temp_eigen = km_it.second->getJointFilter(REVOLUTE_JOINT)->getJointPositionInRRBFrame();
+            temp_ros.x = temp_eigen.x();
+            temp_ros.y = temp_eigen.y();
+            temp_ros.z = temp_eigen.z();
+            joint_msg.rev_position = temp_ros;
 
-        temp_eigen = km_it.second->getJointFilter(REVOLUTE_JOINT)->getJointOrientationUnitaryVector();
-        temp_ros_vect.x = temp_eigen.x();
-        temp_ros_vect.y = temp_eigen.y();
-        temp_ros_vect.z = temp_eigen.z();
-        joint_msg.rev_orientation = temp_ros_vect;
+            Eigen::Matrix3d posi_unc = km_it.second->getJointFilter(REVOLUTE_JOINT)->getCovariancePositionXYZInRRBFrame();
 
-        joint_msg.rev_ori_phi = km_it.second->getJointFilter(REVOLUTE_JOINT)->getOrientationPhiInRRBFrame();
-        joint_msg.rev_ori_theta = km_it.second->getJointFilter(REVOLUTE_JOINT)->getOrientationThetaInRRBFrame();
+            for(int i =0; i<3; i++)
+            {
+                for(int j=0; j<3; j++)
+                {
+                    joint_msg.rev_position_uncertainty[3*j + i] =  posi_unc(i, j);
+                }
+            }
 
-        joint_msg.rev_ori_cov[0] = km_it.second->getJointFilter(REVOLUTE_JOINT)->getCovarianceOrientationPhiPhiInRRBFrame();
-        joint_msg.rev_ori_cov[1] = km_it.second->getJointFilter(REVOLUTE_JOINT)->getCovarianceOrientationPhiThetaInRRBFrame();
-        joint_msg.rev_ori_cov[2] = km_it.second->getJointFilter(REVOLUTE_JOINT)->getCovarianceOrientationPhiThetaInRRBFrame();
-        joint_msg.rev_ori_cov[3] = km_it.second->getJointFilter(REVOLUTE_JOINT)->getCovarianceOrientationThetaThetaInRRBFrame();
+            temp_eigen = km_it.second->getJointFilter(REVOLUTE_JOINT)->getJointOrientationUnitaryVector();
+            temp_ros_vect.x = temp_eigen.x();
+            temp_ros_vect.y = temp_eigen.y();
+            temp_ros_vect.z = temp_eigen.z();
+            joint_msg.rev_orientation = temp_ros_vect;
 
-        joint_msg.rev_joint_value = km_it.second->getJointFilter(REVOLUTE_JOINT)->getJointState();
+            joint_msg.rev_ori_phi = km_it.second->getJointFilter(REVOLUTE_JOINT)->getOrientationPhiInRRBFrame();
+            joint_msg.rev_ori_theta = km_it.second->getJointFilter(REVOLUTE_JOINT)->getOrientationThetaInRRBFrame();
 
-        joint_msg.most_likely_joint =  (int)km_it.second->getMostProbableJointFilter()->getJointFilterType();
+            joint_msg.rev_ori_cov[0] = km_it.second->getJointFilter(REVOLUTE_JOINT)->getCovarianceOrientationPhiPhiInRRBFrame();
+            joint_msg.rev_ori_cov[1] = km_it.second->getJointFilter(REVOLUTE_JOINT)->getCovarianceOrientationPhiThetaInRRBFrame();
+            joint_msg.rev_ori_cov[2] = km_it.second->getJointFilter(REVOLUTE_JOINT)->getCovarianceOrientationPhiThetaInRRBFrame();
+            joint_msg.rev_ori_cov[3] = km_it.second->getJointFilter(REVOLUTE_JOINT)->getCovarianceOrientationThetaThetaInRRBFrame();
 
-        ks_msg.kinematic_structure.push_back(joint_msg);
+            joint_msg.rev_joint_value = km_it.second->getJointFilter(REVOLUTE_JOINT)->getJointState();
+
+            joint_msg.most_likely_joint =  (int)km_it.second->getMostProbableJointFilter()->getJointFilterType();
+
+            ks_msg.kinematic_structure.push_back(joint_msg);
+        }
     }
     ks_msg.header.stamp = time_markers;
     this->_state_publisher.publish(ks_msg);
@@ -620,28 +690,31 @@ void MultiJointTrackerNode::_publishState() const
     std::map<std::pair<int, int>, JointCombinedFilterPtr>::const_iterator joint_combined_filters_it_end = kinematic_model.end();
     for (; joint_combined_filters_it != joint_combined_filters_it_end; joint_combined_filters_it++)
     {
-
-        JointFilterPtr joint_hypothesis = joint_combined_filters_it->second->getMostProbableJointFilter();
-        most_probable_joints[joint_combined_filters_it->first] = joint_hypothesis;
-
-        RB_id = joint_combined_filters_it->first.first;
-        std::ostringstream oss;
-
-        // Static environment
-        if(RB_id == 0)
+        if(!(_robot_interaction && joint_combined_filters_it->first.first == MULTIMODAL_EE_FILTER_ID && joint_combined_filters_it->first.second == DEFORMED_END_EFFECTOR_FILTER_ID))
         {
-            oss << "static_environment";
-        }
-        else{
-            oss << "ip/rb" << RB_id;
-        }
-        std::vector<visualization_msgs::Marker> joint_markers = joint_hypothesis->getJointMarkersInRRBFrame();
-        for (size_t markers_idx = 0; markers_idx < joint_markers.size(); markers_idx++)
-        {
-            joint_markers.at(markers_idx).header.stamp = time_markers;
-            joint_markers.at(markers_idx).header.frame_id = oss.str();
 
-            markers_of_most_probable_structure.markers.push_back(joint_markers.at(markers_idx));
+            JointFilterPtr joint_hypothesis = joint_combined_filters_it->second->getMostProbableJointFilter();
+            most_probable_joints[joint_combined_filters_it->first] = joint_hypothesis;
+
+            RB_id = joint_combined_filters_it->first.first;
+            std::ostringstream oss;
+
+            // Static environment
+            if(RB_id == 0)
+            {
+                oss << "static_environment";
+            }
+            else{
+                oss << "ip/rb" << RB_id;
+            }
+            std::vector<visualization_msgs::Marker> joint_markers = joint_hypothesis->getJointMarkersInRRBFrame();
+            for (size_t markers_idx = 0; markers_idx < joint_markers.size(); markers_idx++)
+            {
+                joint_markers.at(markers_idx).header.stamp = time_markers;
+                joint_markers.at(markers_idx).header.frame_id = oss.str();
+
+                markers_of_most_probable_structure.markers.push_back(joint_markers.at(markers_idx));
+            }
         }
     }
     this->_state_publisher_rviz_markers.publish(markers_of_most_probable_structure);
@@ -649,6 +722,7 @@ void MultiJointTrackerNode::_publishState() const
     std_msgs::String urdf_string_msg;
     sensor_msgs::JointState joint_states_msg;
     this->_generateURDF(urdf_string_msg, joint_states_msg);
+
     this->_state_publisher_urdf.publish(urdf_string_msg);
     this->_state_publisher_joint_states.publish(joint_states_msg);
 }
@@ -669,16 +743,45 @@ void MultiJointTrackerNode::_PrintResults() const
     {
         JointCombinedFilterPtr cf_ptr = this->_re_filter->getCombinedFilter(combined_filter_idx);
         JointFilterPtr joint_hypothesis = km_it.second->getMostProbableJointFilter();
-        ROS_INFO_NAMED( "MultiJointTrackerNode::PrintAndPublishResults",
-                        "Joint between RB%3d and RB%3d  (JointID =%3d) of type %s (P=%2.2f, Rev=%2.2f, Rig=%2.2f, D=%2.2f)",
-                        (int)km_it.first.first,
-                        (int)km_it.first.second,
-                        (int)km_it.second->getJointCombinedFilterId(),
-                        joint_hypothesis->getJointFilterTypeStr().c_str(),
-                        cf_ptr->getJointFilter(PRISMATIC_JOINT)->getProbabilityOfJointFilter(),
-                        cf_ptr->getJointFilter(REVOLUTE_JOINT)->getProbabilityOfJointFilter(),
-                        cf_ptr->getJointFilter(RIGID_JOINT)->getProbabilityOfJointFilter(),
-                        cf_ptr->getJointFilter(DISCONNECTED_JOINT)->getProbabilityOfJointFilter());
+        if(!(_robot_interaction && km_it.first.first == DEFORMED_END_EFFECTOR_FILTER_ID && km_it.first.second == INTERACTED_RB_FILTER_ID)
+                && !(_robot_interaction && km_it.first.first == MULTIMODAL_EE_FILTER_ID && km_it.first.second == DEFORMED_END_EFFECTOR_FILTER_ID))
+        {
+            ROS_INFO_NAMED( "MultiJointTrackerNode::PrintAndPublishResults",
+                            "Joint between RB%3d and RB%3d  (JointID =%3d) of type %s (P=%2.2f, Rev=%2.2f, Rig=%2.2f, D=%2.2f)",
+                            (int)km_it.first.first,
+                            (int)km_it.first.second,
+                            (int)km_it.second->getJointCombinedFilterId(),
+                            joint_hypothesis->getJointFilterTypeStr().c_str(),
+                            cf_ptr->getJointFilter(PRISMATIC_JOINT)->getProbabilityOfJointFilter(),
+                            cf_ptr->getJointFilter(REVOLUTE_JOINT)->getProbabilityOfJointFilter(),
+                            cf_ptr->getJointFilter(RIGID_JOINT)->getProbabilityOfJointFilter(),
+                            cf_ptr->getJointFilter(DISCONNECTED_JOINT)->getProbabilityOfJointFilter());
+        }else if (_robot_interaction && km_it.first.first == DEFORMED_END_EFFECTOR_FILTER_ID && km_it.first.second == INTERACTED_RB_FILTER_ID){
+            ROS_INFO_NAMED( "MultiJointTrackerNode::PrintAndPublishResults",
+                            "Joint between RB%3d (deformed end-effector) and RB%3d (interacted body)  (JointID =%3d) of type %s (PG=%2.2f, URY=%2.2f, URTY=%2.2f, D=%2.2f)",
+                            (int)km_it.first.first,
+                            (int)km_it.first.second,
+                            (int)km_it.second->getJointCombinedFilterId(),
+                            joint_hypothesis->getJointFilterTypeStr().c_str(),
+                            cf_ptr->getJointFilter(PERFECT_GRASP_JOINT)->getProbabilityOfJointFilter(),
+                            cf_ptr->getJointFilter(UNCONSTRAINED_RY_GRASP_JOINT)->getProbabilityOfJointFilter(),
+                            cf_ptr->getJointFilter(UNCONSTRAINED_RY_TY_GRASP_JOINT)->getProbabilityOfJointFilter(),
+                            cf_ptr->getJointFilter(DISCONNECTED_JOINT)->getProbabilityOfJointFilter());
+            std_msgs::Float64MultiArray grasping_types;
+            grasping_types.data.push_back(cf_ptr->getJointFilter(PERFECT_GRASP_JOINT)->getProbabilityOfJointFilter());
+            grasping_types.data.push_back(cf_ptr->getJointFilter(UNCONSTRAINED_RY_GRASP_JOINT)->getProbabilityOfJointFilter());
+            grasping_types.data.push_back(cf_ptr->getJointFilter(UNCONSTRAINED_RY_TY_GRASP_JOINT)->getProbabilityOfJointFilter());
+            grasping_types.data.push_back(cf_ptr->getJointFilter(DISCONNECTED_JOINT)->getProbabilityOfJointFilter());
+            _grasping_type_publisher.publish(grasping_types);
+        }else if (_robot_interaction && km_it.first.first == MULTIMODAL_EE_FILTER_ID && km_it.first.second == DEFORMED_END_EFFECTOR_FILTER_ID )
+        {
+            ROS_INFO_NAMED( "MultiJointTrackerNode::PrintAndPublishResults",
+                            "Joint between RB%3d (end effector) and RB%3d (deformed end-effector)  (JointID =%3d) of type DeformationFilter",
+                            (int)km_it.first.first,
+                            (int)km_it.first.second,
+                            (int)km_it.second->getJointCombinedFilterId()
+                            );
+        }
         combined_filter_idx++;
     }
 }

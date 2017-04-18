@@ -1,13 +1,16 @@
 #include "joint_tracker/DisconnectedJointFilter.h"
 
-#include <random>
+#include <boost/random.hpp>
 
 using namespace omip;
 
 DisconnectedJointFilter::DisconnectedJointFilter() :
-    JointFilter()
+    JointFilter(),
+    _is_grasp_model(false)
 {
     _unnormalized_model_probability = 0.8;
+
+    std::srand(std::time(0));
 }
 
 DisconnectedJointFilter::~DisconnectedJointFilter()
@@ -27,141 +30,58 @@ void DisconnectedJointFilter::initialize()
 
 double DisconnectedJointFilter::getProbabilityOfJointFilter() const
 {
-    return (_unnormalized_model_probability / this->_normalizing_term);//this->_measurements_likelihood;
+    return (_unnormalized_model_probability / this->_normalizing_term);
 }
 
-geometry_msgs::TwistWithCovariance DisconnectedJointFilter::getPredictedSRBDeltaPoseWithCovInSensorFrame()
+void DisconnectedJointFilter::estimateUnnormalizedModelProbability()
+{    
+    // If we receive ft sensor signals we use them to discriminate between grasp failure and any other model
+    if(_ft_meas.size() == 6)
+    {
+        this->_estimateFTMeasurementLikelihood();
+    }
+
+    // If it is not a grasp model (articulated object model) or if it is a grasp model and it is not grasped
+    if(!_is_grasp_model)
+    {
+        this->_unnormalized_model_probability = _model_prior_probability*_measurements_likelihood;
+    }else{
+
+        this->_unnormalized_model_probability = _model_prior_probability*_measurements_likelihood*_current_prob_grasp_failure;
+    }
+}
+
+void DisconnectedJointFilter::predictMeasurement()
 {
     // We just give a random prediction
-    std::default_random_engine generator;;
-    std::uniform_real_distribution<double> distr(-100.0, 100.0); // define the range
-    Eigen::Twistd srb_delta_pose_in_sf_next = Eigen::Twistd(distr(generator),distr(generator),distr(generator),
-                                                      distr(generator),distr(generator),distr(generator) );
 
-    geometry_msgs::TwistWithCovariance hypothesis;
 
-    hypothesis.twist.linear.x = srb_delta_pose_in_sf_next.vx();
-    hypothesis.twist.linear.y = srb_delta_pose_in_sf_next.vy();
-    hypothesis.twist.linear.z = srb_delta_pose_in_sf_next.vz();
-    hypothesis.twist.angular.x = srb_delta_pose_in_sf_next.rx();
-    hypothesis.twist.angular.y = srb_delta_pose_in_sf_next.ry();
-    hypothesis.twist.angular.z = srb_delta_pose_in_sf_next.rz();
+    typedef boost::mt19937 RNGType;
+    RNGType rng;
+    boost::uniform_real<> minus_plus_hundred( -100, 100 );
+    boost::variate_generator< RNGType, boost::uniform_real<> > dice(rng, minus_plus_hundred);
 
-    // If the bodies are disconnected, we cannot use the kinematic structure to give an accurate predition
-    for (unsigned int i = 0; i < 6; i++)
+    this->_change_in_relative_pose_predicted_in_rrbf = Eigen::Twistd(dice(),dice(),dice(),
+                                                      dice(),dice(),dice());
+    Eigen::Displacementd predicted_delta = this->_change_in_relative_pose_predicted_in_rrbf.exp(1e-20);
+    Eigen::Displacementd T_rrbf_srbf_t0 = this->_srb_initial_pose_in_rrbf.exp(1.0e-20);
+    Eigen::Displacementd T_rrbf_srbf_t_next = predicted_delta * T_rrbf_srbf_t0;
+
+    this->_srb_predicted_pose_in_rrbf = T_rrbf_srbf_t_next.log(1.0e-20);
+
+    for(int i=0; i<6; i++)
     {
-        for (unsigned int j = 0; j < 6; j++)
+        for(int j=0; j<6; j++)
         {
             if(i == j)
             {
-                hypothesis.covariance[6 * i + j] = 1.0e6;
+                this->_change_in_relative_pose_cov_predicted_in_rrbf(i,j) = 1.0e6;
             }else
             {
-                hypothesis.covariance[6 * i + j] = 1.0e3;
+                this->_change_in_relative_pose_cov_predicted_in_rrbf(i,j) = 1.0e3;
             }
         }
     }
-
-    return hypothesis;
-}
-
-geometry_msgs::TwistWithCovariance DisconnectedJointFilter::getPredictedSRBVelocityWithCovInSensorFrame()
-{
-    // We just give a random prediction
-    std::default_random_engine generator;;
-    std::uniform_real_distribution<double> distr(-100.0, 100.0); // define the range
-    Eigen::Twistd srb_delta_pose_in_sf_next = Eigen::Twistd(distr(generator),distr(generator),distr(generator),
-                                                      distr(generator),distr(generator),distr(generator) );
-
-    geometry_msgs::TwistWithCovariance hypothesis;
-
-    hypothesis.twist.linear.x = srb_delta_pose_in_sf_next.vx();
-    hypothesis.twist.linear.y = srb_delta_pose_in_sf_next.vy();
-    hypothesis.twist.linear.z = srb_delta_pose_in_sf_next.vz();
-    hypothesis.twist.angular.x = srb_delta_pose_in_sf_next.rx();
-    hypothesis.twist.angular.y = srb_delta_pose_in_sf_next.ry();
-    hypothesis.twist.angular.z = srb_delta_pose_in_sf_next.rz();
-
-    // If the bodies are disconnected, we cannot use the kinematic structure to give an accurate predition
-    for (unsigned int i = 0; i < 6; i++)
-    {
-        for (unsigned int j = 0; j < 6; j++)
-        {
-            if(i == j)
-            {
-                hypothesis.covariance[6 * i + j] = 1.0e6;
-            }else
-            {
-                hypothesis.covariance[6 * i + j] = 1.0e3;
-            }
-        }
-    }
-
-    return hypothesis;
-}
-
-geometry_msgs::TwistWithCovariance DisconnectedJointFilter::getPredictedSRBPoseWithCovInSensorFrame()
-{
-    // If the two rigid bodies are disconnecte, the pose of the second rigid body is INDEPENDENT of the motion of the reference rigid body
-
-    // OPTION1: This prediction is the same as predicting in the rigid body level using velocity
-    //Eigen::Twistd delta_motion_srb = this->_srb_current_vel_in_sf*(this->_loop_period_ns/1e9);
-    //Eigen::Twistd srb_pose_in_sf_next = (delta_motion_srb.exp(1e-12)*this->_srb_current_pose_in_sf.exp(1e-12)).log(1e-12);
-
-    // OPTION2: We just give a random prediction
-    std::default_random_engine generator;;
-    std::uniform_real_distribution<double> distr(-100.0, 100.0); // define the range
-    Eigen::Twistd srb_pose_in_sf_next = Eigen::Twistd(distr(generator),distr(generator),distr(generator),
-                                                      distr(generator),distr(generator),distr(generator) );
-
-    geometry_msgs::TwistWithCovariance hypothesis;
-    hypothesis.twist.linear.x = srb_pose_in_sf_next.vx();
-    hypothesis.twist.linear.y = srb_pose_in_sf_next.vy();
-    hypothesis.twist.linear.z = srb_pose_in_sf_next.vz();
-    hypothesis.twist.angular.x = srb_pose_in_sf_next.rx();
-    hypothesis.twist.angular.y = srb_pose_in_sf_next.ry();
-    hypothesis.twist.angular.z = srb_pose_in_sf_next.rz();
-
-    // If the bodies are disconnected, we cannot use the kinematic structure to give an accurate predition
-    for (unsigned int i = 0; i < 6; i++)
-    {
-        for (unsigned int j = 0; j < 6; j++)
-        {
-            if(i == j)
-            {
-                hypothesis.covariance[6 * i + j] = 1.0e6;
-            }else
-            {
-                hypothesis.covariance[6 * i + j] = 1.0e3;
-            }
-        }
-    }
-
-
-#ifdef PUBLISH_PREDICTED_POSE_AS_PWC
-    // This is used to visualize the predictions based on the joint hypothesis
-    // Get the poses and covariances on the poses (pose with cov) of each RB
-    geometry_msgs::PoseWithCovarianceStamped pose_with_cov_stamped;
-    pose_with_cov_stamped.header.stamp = ros::Time::now();
-    pose_with_cov_stamped.header.frame_id = "camera_rgb_optical_frame";
-
-    Eigen::Displacementd displ_from_twist = srb_pose_in_sf_next.exp(1e-12);
-    pose_with_cov_stamped.pose.pose.position.x = displ_from_twist.x();
-    pose_with_cov_stamped.pose.pose.position.y = displ_from_twist.y();
-    pose_with_cov_stamped.pose.pose.position.z = displ_from_twist.z();
-    pose_with_cov_stamped.pose.pose.orientation.x = displ_from_twist.qx();
-    pose_with_cov_stamped.pose.pose.orientation.y = displ_from_twist.qy();
-    pose_with_cov_stamped.pose.pose.orientation.z = displ_from_twist.qz();
-    pose_with_cov_stamped.pose.pose.orientation.w = displ_from_twist.qw();
-
-    for (unsigned int i = 0; i < 6; i++)
-        for (unsigned int j = 0; j < 6; j++)
-            pose_with_cov_stamped.pose.covariance[6 * i + j] = hypothesis.covariance[6 * i + j];
-
-    _predicted_next_pose_publisher.publish(pose_with_cov_stamped);
-#endif
-
-    return hypothesis;
 }
 
 std::vector<visualization_msgs::Marker> DisconnectedJointFilter::getJointMarkersInRRBFrame() const

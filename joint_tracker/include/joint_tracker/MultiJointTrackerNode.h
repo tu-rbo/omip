@@ -64,6 +64,9 @@ Projectname = {Interactive Perception}
 #include "omip_common/OMIPTypeDefs.h"
 
 #include <std_msgs/Float64.h>
+#include <std_msgs/Int32.h>
+
+#include <std_msgs/Float64MultiArray.h>
 
 namespace omip{
 
@@ -93,6 +96,10 @@ public:
    * @param poses_and_vels Input tracked RB poses and vels
    */
     virtual void measurementCallback(const boost::shared_ptr<ks_measurement_ros_t const> &poses_and_vels);
+    virtual void measurementFTCallback(const std_msgs::Float64MultiArrayConstPtr &ft_values);
+    virtual void measurementEE2CPCallback(const std_msgs::Float64MultiArrayConstPtr &rel_pose);
+    virtual void slippageDetectedCallback(const std_msgs::Int32ConstPtr &msg);
+
 
     /**
    * @brief Callback for the predictions about the state of this RE level coming from the higher level of the hierarchy
@@ -146,6 +153,19 @@ protected:
     int _min_joint_age_for_ee;
 
     std::string _sr_path;
+
+    bool _robot_interaction;
+
+    ros::Subscriber _measurement_subscriber_ft;
+    ros::Subscriber _measurement_subscriber_cp;
+    ros::Subscriber _slippage_detector_cp;
+
+    std::string _ft_topic;
+    std::vector<double> _last_ft_values;
+    std::vector<double> _last_ee2cp_relpose;
+    bool _ft_values_being_used;
+    ros::Publisher _grasping_type_publisher;
+
 };
 }
 

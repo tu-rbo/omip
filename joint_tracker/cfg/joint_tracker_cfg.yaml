@@ -9,7 +9,7 @@ clear_rviz_markers: true
 
 # Unnormalized probability of the Disconnected joint (constant value). This probability acts as threshold: if 
 # the probability of the other joint types are under this value, the joint is classified as Disconnected (for uniform prior)
-disconnected_ne: 0.1
+disconnected_ne: 3.2
 
 # Params for all joints
 likelihood_sample_num: 100
@@ -49,3 +49,13 @@ rev_max_joint_distance_for_ee: 0.5
 rig_max_translation: 0.05
 # Maximum amount of rotation allowed before rejecting the rigid joint hypothesis [rad]
 rig_max_rotation: 0.1
+
+# Type of grasp to define the transmision of motion from the ee to the interacted body (defined in JointFilter.h)
+#ALL = 0,
+#PERFECT_GRASP_JOINT = 1,
+#UNCONSTRAINED_RY_GRASP_JOINT = 2
+#UNCONSTRAINED_RY_TY_GRASP_JOINT = 3
+type_of_grasp: 0
+
+# Topic where the expected force of the end effector is published (from the robot)
+ft_topic: /ft_notool

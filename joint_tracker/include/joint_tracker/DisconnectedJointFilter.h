@@ -71,26 +71,10 @@ public:
   DisconnectedJointFilter(const DisconnectedJointFilter &rigid_joint);
 
   /**
-   * @brief Generate a prediction about the pose-twist of the second rigid body (SRB) and its covariance using the frame of sensor (SF) as observation and ref frame
-   * based on the predicted measurement and the predicted next pose of the reference rigid body (RRB) in the sensor frame (SF)
-   */
-  virtual geometry_msgs::TwistWithCovariance getPredictedSRBPoseWithCovInSensorFrame();
-
-  /**
- * @brief Generate a prediction about the change in pose of the second rigid body (SRB) and its covariance using the frame of sensor (SF) as observation and ref frame
- * based on the predicted measurement and the predicted next pose of the reference rigid body (RRB) in the sensor frame (SF)
- *
- * @return geometry_msgs::TwistWithCovariance Change in pose of the second rigid body in form of a twist with covariance based on the model uncertainty
+ * Generate a hypothesis about the pose of the second rigid body based on the pose of the
+ * reference rigid body and the internal state (joint parameters and latent variable)
  */
-  virtual geometry_msgs::TwistWithCovariance getPredictedSRBDeltaPoseWithCovInSensorFrame();
-
-  /**
- * @brief Generate a prediction about the velocity of the second rigid body (SRB) and its covariance using the frame of sensor (SF) as observation and ref frame
- * based on the predicted measurement and the predicted next pose of the reference rigid body (RRB) in the sensor frame (SF)
- *
- * @return geometry_msgs::TwistWithCovariance Velocity of the second rigid body in form of a twist with covariance based on the model uncertainty
- */
-  virtual geometry_msgs::TwistWithCovariance getPredictedSRBVelocityWithCovInSensorFrame();
+  virtual void predictMeasurement();
 
   /**
    * Return rviz markers that show the type and parameters of the estimated joint
@@ -117,6 +101,13 @@ public:
 
   virtual void initialize();
 
+  virtual void estimateUnnormalizedModelProbability();
+
+  virtual void setIsGraspModel(bool is_grasp_model)
+  {
+      _is_grasp_model = is_grasp_model;
+  }
+
 protected:
 
   /**
@@ -134,6 +125,8 @@ protected:
   {
     return (new DisconnectedJointFilter(*this));
   }
+
+  bool _is_grasp_model;
 
 };
 
