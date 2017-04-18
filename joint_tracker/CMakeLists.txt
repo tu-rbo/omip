@@ -22,6 +22,7 @@ find_package(catkin REQUIRED COMPONENTS
   pcl_conversions
   rosbag
   lgsm
+  tf_conversions
   cmake_modules)
 
 find_package(bfl REQUIRED)
@@ -40,7 +41,7 @@ generate_messages(
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES ${PROJECT_NAME}
-  CATKIN_DEPENDS roscpp omip_common omip_msgs std_msgs geometry_msgs sensor_msgs image_transport cv_bridge pcl_ros message_runtime rosbag rb_tracker
+  CATKIN_DEPENDS roscpp omip_common omip_msgs std_msgs geometry_msgs sensor_msgs image_transport cv_bridge pcl_ros message_runtime rosbag rb_tracker tf_conversions
   DEPENDS opencv pcl eigen)
 
  #Special set of commands (optimized) for 64bit architecture
@@ -48,7 +49,7 @@ catkin_package(
    add_definitions("-msse3")
  endif()
 
-add_definitions("-std=c++11")
+
 
 include_directories(include ${Boost_INCLUDE_DIRS} ${Eigen_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS} ${PCL_INCLUDE_DIRS} ${catkin_INCLUDE_DIRS} ${bfl_INCLUDE_DIRS} )
 
@@ -61,17 +62,28 @@ FILE(GLOB source_lib_files RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
         "include/joint_tracker/RevoluteJointFilter.h"
         "include/joint_tracker/RigidJointFilter.h"
         "include/joint_tracker/DisconnectedJointFilter.h"
+        "include/joint_tracker/PerfectGraspFilter.h"
+        "include/joint_tracker/UnconstrainedRyGraspFilter.h"
+        "include/joint_tracker/UnconstrainedRyTyGraspFilter.h"
+        "include/joint_tracker/DeformationFilter.h"
         "include/joint_tracker/pdf/NonLinearPrismaticMeasurementPdf.h"
         "include/joint_tracker/pdf/NonLinearRevoluteMeasurementPdf.h"
+        "include/joint_tracker/pdf/NonLinearGraspMeasurementPdf.h"
         "src/JointCombinedFilter.cpp"
         "src/JointFilter.cpp"
         "src/DisconnectedJointFilter.cpp"
         "src/RigidJointFilter.cpp"
         "src/PrismaticJointFilter.cpp"
         "src/RevoluteJointFilter.cpp"
+        "src/PerfectGraspFilter.cpp"
+        "src/UnconstrainedRyGraspFilter.cpp"
+        "src/UnconstrainedRyTyGraspFilter.cpp"
+        "src/DeformationFilter.cpp"
         "src/MultiJointTracker.cpp"
         "src/pdf/NonLinearPrismaticMeasurementPdf.cpp"
-        "src/pdf/NonLinearRevoluteMeasurementPdf.cpp")
+        "src/pdf/NonLinearRevoluteMeasurementPdf.cpp"
+        "src/pdf/NonLinearGraspMeasurementPdf.cpp"
+)
 
 # List of source files for the application/node
 FILE(GLOB source_node_files RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} 
