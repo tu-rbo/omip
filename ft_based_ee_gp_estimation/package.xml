@@ -1,0 +1,21 @@
+<package>
+  <name>ft_based_ee_gp_estimation</name>
+  <version>1.0.0</version>
+  <description>
+  This package estimates the relative transformation between the EE frame and the grasping point based on FT signals.
+  </description>
+  
+  <license>MIT</license>
+  <author>Roberto Martín-Martín</author>
+  <maintainer email="roberto.martinmartin@tu-berlin.de">Roberto Martín-Martín</maintainer>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  
+  <run_depend>omip</run_depend>
+  <run_depend>omip_common</run_depend>
+  <run_depend>feature_tracker</run_depend>
+  <run_depend>rb_tracker</run_depend>
+  <run_depend>joint_tracker</run_depend>
+
+
+</package>
