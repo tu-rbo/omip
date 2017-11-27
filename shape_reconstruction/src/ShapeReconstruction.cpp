@@ -1205,7 +1205,7 @@ void ShapeReconstruction::_GenerateMesh(const omip::SRPointCloud::Ptr& pc_source
 
         pcl::io::mesh2vtk(*this->_rb_triangulated_mesh_ptr, this->_rb_polygon_data_ptr);
 
-        this->_rb_polygon_writer_ptr->SetInput (this->_rb_polygon_data_ptr);
+        this->_rb_polygon_writer_ptr->SetInputData (this->_rb_polygon_data_ptr);
         this->_rb_polygon_writer_ptr->SetFileName (rb_mesh_full_file_name.c_str ());
         this->_rb_polygon_writer_ptr->Write ();
 

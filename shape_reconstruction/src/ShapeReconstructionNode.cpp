@@ -711,7 +711,7 @@ void ShapeReconstructionNode::_GenerateMesh(const omip::SRPointCloud::Ptr& pc_so
 
         pcl::io::mesh2vtk(*this->_se_triangulated_mesh_ptr, this->_se_polygon_data_ptr);
 
-        this->_se_polygon_writer_ptr->SetInput (this->_se_polygon_data_ptr);
+        this->_se_polygon_writer_ptr->SetInputData (this->_se_polygon_data_ptr);
         this->_se_polygon_writer_ptr->SetFileName (se_mesh_full_file_name.c_str ());
         this->_se_polygon_writer_ptr->Write ();
 
