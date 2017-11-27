@@ -10,7 +10,7 @@ endif()
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
-  cmake_modules
+  lgsm
   dynamic_reconfigure
   roscpp
   omip_common
@@ -23,8 +23,7 @@ find_package(catkin REQUIRED COMPONENTS
   pcl_ros
   message_generation
   pcl_conversions
-  lgsm
-  cmake_modules)
+)
 
 # check c++11 / c++0x
 include(CheckCXXCompilerFlag)
@@ -38,11 +37,9 @@ else()
     message(FATAL_ERROR "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
 endif()
 
-find_package(OpenCV REQUIRED)
-find_package(PCL REQUIRED)
 find_package(Boost REQUIRED COMPONENTS signals thread filesystem)
-find_package(Eigen REQUIRED)
 find_package(bfl REQUIRED)
+find_package(OpenCV REQUIRED COMPONENTS highgui)
 
 add_service_files(FILES generate_meshes.srv)
 generate_messages(
@@ -55,7 +52,7 @@ catkin_package(
   INCLUDE_DIRS include
   LIBRARIES ${PROJECT_NAME}
   CATKIN_DEPENDS roscpp omip_common omip_msgs std_msgs geometry_msgs sensor_msgs image_transport cv_bridge pcl_ros rb_tracker
-  DEPENDS opencv pcl
+  DEPENDS
 )
 
 ###########
@@ -74,18 +71,15 @@ include_directories(
   include
   include/vcglib
   ${Boost_INCLUDE_DIRS}
-  ${Eigen_INCLUDE_DIRS}
-  ${OpenCV_INCLUDE_DIRS}
-  ${PCL_INCLUDE_DIRS}
   ${catkin_INCLUDE_DIRS}
   ${bfl_INCLUDE_DIRS}
 )
 
 # List of source files for the library. Including headers to see them in qtcreator
 FILE(GLOB source_lib_files RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
-		"include/shape_reconstruction/RangeImagePlanar.h"
+                "include/shape_reconstruction/RangeImagePlanar.h"
                 "include/shape_reconstruction/RangeImagePlanar.hpp"
-		"include/shape_reconstruction/ShapeReconstruction.h"
+                "include/shape_reconstruction/ShapeReconstruction.h"
                 "include/shape_reconstruction/SRUtils.h"
                 "include/shape_reconstruction/Passthrough.h"
                 "include/shape_reconstruction/Passthrough.hpp"
@@ -113,28 +107,27 @@ FILE(GLOB source_srp_node_files RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
 
 # Generate a library with the name of the project
 add_library(${PROJECT_NAME} ${source_lib_files})
-add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_gencfg ${catkin_EXPORTED_TARGETS})
+add_dependencies(${PROJECT_NAME} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(${PROJECT_NAME}
   ${catkin_LIBRARIES}
   ${Boost_LIBRARIES}
-  ${OpenCV_LIBRARIES}
-  ${PCL_LIBRARIES}
   ${bfl_LIBRARIES}
 )
 
 # Generate an executable with the name of the project + "_node" that links to the library
 add_executable(${PROJECT_NAME}_node ${source_node_files})
-add_dependencies(${PROJECT_NAME}_node ${PROJECT_NAME}_gencfg ${catkin_EXPORTED_TARGETS})
+add_dependencies(${PROJECT_NAME}_node ${catkin_EXPORTED_TARGETS})
 target_link_libraries(${PROJECT_NAME}_node ${PROJECT_NAME})
 
 add_executable(${PROJECT_NAME}_smoother_node ${source_smoother_node_files})
-add_dependencies(${PROJECT_NAME}_smoother_node ${PROJECT_NAME}_gencfg ${catkin_EXPORTED_TARGETS})
+add_dependencies(${PROJECT_NAME}_smoother_node ${catkin_EXPORTED_TARGETS})
 target_link_libraries(${PROJECT_NAME}_smoother_node ${PROJECT_NAME})
 
 add_executable(${PROJECT_NAME}_srp_node ${source_srp_node_files})
-add_dependencies(${PROJECT_NAME}_srp_node ${PROJECT_NAME}_gencfg ${catkin_EXPORTED_TARGETS})
+add_dependencies(${PROJECT_NAME}_srp_node ${catkin_EXPORTED_TARGETS})
 target_link_libraries(${PROJECT_NAME}_srp_node ${PROJECT_NAME})
 
+link_directories("${OpenCV_INSTALL_PATH}/lib")
 add_executable(${PROJECT_NAME}_statistics src/statistics.cpp)
-add_dependencies(${PROJECT_NAME}_statistics ${PROJECT_NAME}_gencfg ${catkin_EXPORTED_TARGETS})
-target_link_libraries(${PROJECT_NAME}_statistics ${PROJECT_NAME})
+add_dependencies(${PROJECT_NAME}_statistics ${catkin_EXPORTED_TARGETS})
+target_link_libraries(${PROJECT_NAME}_statistics ${PROJECT_NAME} ${OpenCV_LIBS})
