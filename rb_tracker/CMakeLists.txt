@@ -8,7 +8,7 @@ if(NOT CMAKE_BUILD_TYPE MATCHES Release AND NOT CMAKE_BUILD_TYPE MATCHES RelWith
 endif()
 
 find_package(catkin REQUIRED COMPONENTS 
-  cmake_modules
+  lgsm
   dynamic_reconfigure
   roscpp
   omip_common
@@ -22,14 +22,10 @@ find_package(catkin REQUIRED COMPONENTS
   rosbag
   pcl_ros
   pcl_conversions
-  lgsm
-  cmake_modules)
+)
 
 find_package(bfl REQUIRED)
-find_package(OpenCV 2 REQUIRED)
-find_package(PCL REQUIRED)
 find_package(Boost REQUIRED COMPONENTS signals thread)
-find_package(Eigen REQUIRED)
 
 generate_dynamic_reconfigure_options(
   cfg/RBTrackerDynReconf.cfg
@@ -39,7 +35,7 @@ catkin_package(
   INCLUDE_DIRS include
   LIBRARIES ${PROJECT_NAME}
   CATKIN_DEPENDS roscpp omip_common omip_msgs std_msgs geometry_msgs sensor_msgs image_transport cv_bridge pcl_ros message_runtime rosbag dynamic_reconfigure
-  DEPENDS opencv pcl eigen message_runtime)
+  DEPENDS message_runtime)
 
 #Special set of commands (optimized) for 64bit architecture
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
@@ -48,7 +44,7 @@ endif()
 
 add_definitions("-std=c++11")
 
-include_directories(include ${Boost_INCLUDE_DIRS} ${Eigen_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS} ${PCL_INCLUDE_DIRS} ${bfl_INCLUDE_DIRS} ${catkin_INCLUDE_DIRS} )
+include_directories(include ${catkin_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS} ${bfl_INCLUDE_DIRS})
 
 # Generates a list of all .cpp files in /src and subdirectories
 FILE(GLOB source_lib_files RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} 
@@ -67,7 +63,7 @@ FILE(GLOB source_node_files RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
 # Generate a library with the name of the project
 add_library(${PROJECT_NAME} ${source_lib_files})
 add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_gencfg ${catkin_EXPORTED_TARGETS})
-target_link_libraries(${PROJECT_NAME} ${bfl_LIBRARIES} ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${OpenCV_LIBRARIES} ${PCL_LIBRARIES} ${bfl_LIBRARIES} )
+target_link_libraries(${PROJECT_NAME} ${bfl_LIBRARIES} ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${bfl_LIBRARIES} )
 
 # Generate an executable with the name of the project + "_node" that links to the library
 add_executable(${PROJECT_NAME}_node ${source_node_files})

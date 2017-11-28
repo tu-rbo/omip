@@ -312,7 +312,7 @@ RangeImagePlanar::computeZandMatchingPoints (const PointCloudType& point_cloud,
             float n_m_im_z = matching_im.at< float >(n_y,n_x);
 
             // if matching_im is nan at this point we cannot compare
-            if (isnan(n_m_im_z)) {
+            if (std::isnan(n_m_im_z)) {
                 continue;
             }
 
@@ -350,7 +350,7 @@ RangeImagePlanar::computeZandMatchingPoints (const PointCloudType& point_cloud,
         }
 
         // can't say anything about nan image point
-        if (isnan(m_im_z)) {
+        if (std::isnan(m_im_z)) {
             removal_candidates[idx] = false;
             occluded_indices->indices.push_back(idx); // DEBUGGING
             continue;

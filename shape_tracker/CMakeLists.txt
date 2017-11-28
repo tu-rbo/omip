@@ -10,7 +10,7 @@ endif()
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
-  cmake_modules
+  lgsm
   dynamic_reconfigure
   roscpp
   omip_common
@@ -23,9 +23,8 @@ find_package(catkin REQUIRED COMPONENTS
   pcl_ros
   message_generation
   pcl_conversions
-  lgsm
   shape_reconstruction
-  cmake_modules)
+)
 
 # check c++11 / c++0x
 include(CheckCXXCompilerFlag)
@@ -39,10 +38,7 @@ else()
     message(FATAL_ERROR "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
 endif()
 
-find_package(OpenCV REQUIRED)
-find_package(PCL REQUIRED)
 find_package(Boost REQUIRED COMPONENTS signals thread filesystem)
-find_package(Eigen REQUIRED)
 find_package(bfl REQUIRED)
 
 # Comment/Uncomment this line to compile the LIBPOINTMATCHER ICP variant
@@ -76,9 +72,6 @@ catkin_package(
 include_directories(
   include
   ${Boost_INCLUDE_DIRS}
-  ${Eigen_INCLUDE_DIRS}
-  ${OpenCV_INCLUDE_DIRS}
-  ${PCL_INCLUDE_DIRS}
   ${catkin_INCLUDE_DIRS}
   ${bfl_INCLUDE_DIRS}
 )
@@ -114,8 +107,6 @@ add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_gencfg ${catkin_EXPORTED_TARGET
 target_link_libraries(${PROJECT_NAME}
   ${catkin_LIBRARIES}
   ${Boost_LIBRARIES}
-  ${OpenCV_LIBRARIES}
-  ${PCL_LIBRARIES}
   ${bfl_LIBRARIES}
 )
 

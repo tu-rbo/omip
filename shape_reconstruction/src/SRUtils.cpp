@@ -405,7 +405,7 @@ void cbf_cpu(const float* depth, const float* intensity, bool* is_missing,
         return;
     }
 
-    if (isnan(weight_sum)) {
+    if (std::isnan(weight_sum)) {
         printf("*******************\n");
         printf(" Weight sum is NaN\n");
         printf("*******************\n");

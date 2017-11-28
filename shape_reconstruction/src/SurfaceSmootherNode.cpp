@@ -600,7 +600,7 @@ void SurfaceSmootherNode::generateMesh()
 
         pcl::io::mesh2vtk(processed_mesh, vtk_polygon_data_ptr);
 
-        vtk_polygon_writer_ptr->SetInput (vtk_polygon_data_ptr);
+        vtk_polygon_writer_ptr->SetInputData (vtk_polygon_data_ptr);
         vtk_polygon_writer_ptr->SetFileName (save_mesh_filename_stl.c_str ());
         vtk_polygon_writer_ptr->Write ();
     }
