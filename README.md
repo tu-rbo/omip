@@ -47,7 +47,7 @@ You can skip this step if you only want to use the feature-based tracker by addi
 ```touch omip/shape_tracker/CATKIN_IGNORE```
 - Build the packages:<br/>
 ```catkin build (omip)```
-- Download one of the the demo rosbags from [here](https://owncloud.tu-berlin.de/index.php/s/uDSTdI3FDQagfL1) (several GB!) or start an openni node. The rosbags are compressed, you will need to decompress them with:<br/>
+- Download one of the the demo rosbags from [here](https://zenodo.org/record/3610125#.XiDeHoBKjmE) (several GB!) or start an openni node. The rosbags are compressed, you will need to decompress them with:<br/>
 ```rosbag decompress rosbagname.bag```<br/>
 puma_demo is the smallest bag.
 - Start a roscore
